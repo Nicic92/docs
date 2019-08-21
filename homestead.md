@@ -27,6 +27,7 @@
 - [Debugging & Profiling](#debugging-and-profiling)
     - [Debugging Web Requests With Xdebug](#debugging-web-requests)
     - [Debugging CLI Applications](#debugging-cli-applications)
+    - [Profiling Applications with Blackfire](#profiling-applications-with-blackfire)
 - [Network Interfaces](#network-interfaces)
 - [Extending Homestead](#extending-homestead)
 - [Updating Homestead](#updating-homestead)
@@ -79,7 +80,6 @@ Homestead runs on any Windows, Mac, or Linux system, and includes Nginx, PHP, My
 - Xdebug
 - XHProf / Tideways / XHGui
 - wp-cli
-- Minio
 </div>
 
 <a name="optional-software"></a>
@@ -142,6 +142,8 @@ Once VirtualBox / VMware and Vagrant have been installed, you should add the `la
 
 If this command fails, make sure your Vagrant installation is up to date.
 
+> {note} Homestead periodically issues "alpha" / "beta" boxes for testing, which may interfere with the `vagrant box add` command. If you are having issues running `vagrant box add`, you may run the `vagrant up` command and the correct box will be downloaded when Vagrant attempts to start the virtual machine.
+
 #### Installing Homestead
 
 You may install Homestead by cloning the repository onto your host machine. Consider cloning the repository into a `Homestead` folder within your "home" directory, as the Homestead box will serve as the host to all of your Laravel projects:
@@ -185,10 +187,10 @@ You should always map individual projects to their own folder mapping instead of
 
     folders:
         - map: ~/code/project1
-          to: /home/vagrant/code/project1
+          to: /home/vagrant/project1
 
         - map: ~/code/project2
-          to: /home/vagrant/code/project2
+          to: /home/vagrant/project2
 
 > {note} You should never mount `.` (the current directory) when using Homestead. This causes Vagrant to not map the current folder to `/vagrant` and will break optional features and cause unexpected results while provisioning.
 
@@ -370,9 +372,7 @@ But, since you will probably need to SSH into your Homestead machine frequently,
 <a name="connecting-to-databases"></a>
 ### Connecting To Databases
 
-A `homestead` database is configured for both MySQL and PostgreSQL out of the box. For even more convenience, Laravel's `.env` file configures the framework to use this database out of the box.
-
-To connect to your MySQL or PostgreSQL database from your host machine's database client, you should connect to `127.0.0.1` and port `33060` (MySQL) or `54320` (PostgreSQL). The username and password for both databases is `homestead` / `secret`.
+A `homestead` database is configured for both MySQL and PostgreSQL out of the box. To connect to your MySQL or PostgreSQL database from your host machine's database client, you should connect to `127.0.0.1` and port `33060` (MySQL) or `54320` (PostgreSQL). The username and password for both databases is `homestead` / `secret`.
 
 > {note} You should only use these non-standard ports when connecting to the databases from your host machine. You will use the default 3306 and 5432 ports in your Laravel database configuration file since Laravel is running _within_ the virtual machine.
 
@@ -486,7 +486,7 @@ Once Mailhog has been configured, you may access the Mailhog dashboard at `http:
 <a name="configuring-minio"></a>
 ### Configuring Minio
 
-Minio is an open source object storage server with an Amazon S3 compatible API. To install Minio, update your `Homestead.yaml` file with the following configuration option:
+Minio is an open source object storage server with an Amazon S3 compatible API. To install Minio, update your `Homestead.yaml` file with the following configuration option in the [features](#installing-optional-features) section:
 
     minio: true
 
@@ -582,6 +582,14 @@ In addition, you may use any of the supported PHP versions via the CLI:
     php7.2 artisan list
     php7.3 artisan list
 
+You may also update the default CLI version by issuing the following commands from within your Homestead virtual machine:
+
+    php56
+    php70
+    php71
+    php72
+    php73
+
 <a name="web-servers"></a>
 ### Web Servers
 
@@ -600,16 +608,9 @@ Homestead includes the Postfix mail transfer agent, which is listening on port `
 <a name="debugging-web-requests"></a>
 ### Debugging Web Requests With Xdebug
 
-Homestead includes support for step debugging using [Xdebug](https://xdebug.org). For example, you can load a web page from a browser, and PHP will connect to your IDE to allow inspection and modification of the running code.
+Homestead includes support for step debugging using [Xdebug](https://xdebug.org). For example, you can load a web page from a browser, and PHP will connect to your IDE to allow inspection and modification of the running code. 
 
-To enable debugging, run the following commands inside your Vagrant box:
-
-    sudo phpenmod xdebug
-
-    # Update this command to match your PHP version...
-    sudo systemctl restart php7.3-fpm
-
-Next, follow your IDE's instructions to enable debugging. Finally, configure your browser to trigger Xdebug with an extension or [bookmarklet](https://www.jetbrains.com/phpstorm/marklets/).
+By default Xdebug is already running and ready to accept connections. If you need to enable Xdebug on the CLI run the `sudo phpenmod xdebug` command within your Vagrant box. Next, follow your IDE's instructions to enable debugging. Finally, configure your browser to trigger Xdebug with an extension or [bookmarklet](https://www.jetbrains.com/phpstorm/marklets/).
 
 > {note} Xdebug causes PHP to run significantly slower. To disable Xdebug, run `sudo phpdismod xdebug` within your Vagrant box and restart the FPM service.
 
@@ -627,6 +628,24 @@ When debugging functional tests that make requests to the web server, it is easi
     ; If Homestead.yml contains a different subnet for the IP address, this address may be different...
     xdebug.remote_host = 192.168.10.1
     xdebug.remote_autostart = 1
+
+<a name="profiling-applications-with-blackfire"></a>
+### Profiling Applications with Blackfire
+
+[Blackfire](https://blackfire.io/docs/introduction) is a SaaS service for profiling web requests and CLI applications and writing performance assertions. It offers an interactive user interface which displays profile data in call-graphs and timelines. It is built for use in development, staging, and production, with no overhead for end users. It provides performance, quality, and security checks on code and `php.ini` configuration settings.
+
+The [Blackfire Player](https://blackfire.io/docs/player/index) is an open-source Web Crawling, Web Testing and Web Scraping application which can work jointly with Blackfire in order to script profiling scenarios.
+
+To enable Blackfire, use the "features" setting in your Homestead configuration file:
+
+    features:
+        - blackfire:
+            server_id: "server_id"
+            server_token: "server_value"
+            client_id: "client_id"
+            client_token: "client_value"
+
+Blackfire server credentials and client credentials [require a user account](https://blackfire.io/signup). Blackfire offers various options to profile an application, including a CLI tool and browser extension. Please [review the Blackfire documentation for more details](https://blackfire.io/docs/cookbooks/index).
 
 ### Profiling PHP Performance Using XHGui
 
@@ -694,9 +713,9 @@ When using Homestead in a team setting, you may want to tweak Homestead to bette
 <a name="updating-homestead"></a>
 ## Updating Homestead
 
-Before you begin updating Homestead ensure you run `vagrant destroy` to remove your current virtual machine. Then, you should update the Vagrant box using the `vagrant box update` command:
+Before you begin updating Homestead ensure you have removed your current virtual machine by running the following command in your Homestead directory:
 
-    vagrant box update
+    vagrant destroy
 
 Next, you need to update the Homestead source code. If you cloned the repository you can run the following commands at the location you originally cloned the repository:
 
@@ -710,9 +729,11 @@ If you have installed Homestead via your project's `composer.json` file, you sho
 
     composer update
 
-Finally, you will need to destroy and regenerate your Homestead box to utilize the latest Vagrant installation. To accomplish this, run the following commands in your Homestead directory:
+Then, you should update the Vagrant box using the `vagrant box update` command:
 
-    vagrant destroy
+    vagrant box update
+
+Finally, you will need to regenerate your Homestead box to utilize the latest Vagrant installation:
 
     vagrant up
 

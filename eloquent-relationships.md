@@ -563,7 +563,7 @@ Next, let's examine the model definitions needed to build this relationship:
     class Image extends Model
     {
         /**
-         * Get all of the owning imageable models.
+         * Get the owning imageable model.
          */
         public function imageable()
         {
@@ -645,7 +645,7 @@ Next, let's examine the model definitions needed to build this relationship:
     class Comment extends Model
     {
         /**
-         * Get all of the owning commentable models.
+         * Get the owning commentable model.
          */
         public function commentable()
         {
@@ -847,8 +847,10 @@ As demonstrated in the example above, you are free to add additional constraints
 
 In most situations, you likely intend to use [constraint groups](/docs/{{version}}/queries#parameter-grouping) to logically group the conditional checks between parentheses:
 
+    use Illuminate\Database\Eloquent\Builder;
+
     $user->posts()
-            ->where(function ($query) {
+            ->where(function (Builder $query) {
                 return $query->where('active', 1)
                              ->orWhere('votes', '>=', 100);
             })
@@ -893,12 +895,12 @@ If you need even more power, you may use the `whereHas` and `orWhereHas` methods
     use Illuminate\Database\Eloquent\Builder;
 
     // Retrieve posts with at least one comment containing words like foo%...
-    $posts = App\Post::whereHas('comments', function ($query) {
+    $posts = App\Post::whereHas('comments', function (Builder $query) {
         $query->where('content', 'like', 'foo%');
     })->get();
 
     // Retrieve posts with at least ten comments containing words like foo%...
-    $posts = App\Post::whereHas('comments', function ($query) {
+    $posts = App\Post::whereHas('comments', function (Builder $query) {
         $query->where('content', 'like', 'foo%');
     }, '>=', 10)->get();
 
@@ -930,25 +932,34 @@ You may use "dot" notation to execute a query against a nested relationship. For
 
 To query the existence of `MorphTo` relationships, you may use the `whereHasMorph` method and its corresponding methods:
 
+    use Illuminate\Database\Eloquent\Builder;
+
+    // Retrieve comments associated to posts or videos with a title like foo%...
     $comments = App\Comment::whereHasMorph(
         'commentable', 
         ['App\Post', 'App\Video'], 
-        function ($query) {
+        function (Builder $query) {
             $query->where('title', 'like', 'foo%');
         }
     )->get();
 
-    $comments = App\Comment::doesntHaveMorph(
+    // Retrieve comments associated to posts with a title not like foo%...
+    $comments = App\Comment::whereDoesntHaveMorph(
         'commentable', 
-        ['App\Post', 'App\Video']
+        'App\Post', 
+        function (Builder $query) {
+            $query->where('title', 'like', 'foo%');
+        }
     )->get();    
     
 You may use the `$type` parameter to add different constraints depending on the related model:
 
+    use Illuminate\Database\Eloquent\Builder;
+
     $comments = App\Comment::whereHasMorph(
         'commentable', 
         ['App\Post', 'App\Video'], 
-        function ($query, $type) {
+        function (Builder $query, $type) {
             $query->where('title', 'like', 'foo%');
     
             if ($type === 'App\Post') {
@@ -959,7 +970,9 @@ You may use the `$type` parameter to add different constraints depending on the 
     
 Instead of passing an array of possible polymorphic models, you may provide `*` as a wildcard and let Laravel retrieve all the possible polymorphic types from the database. Laravel will execute an additional query in order to perform this operation:
 
-    $comments = App\Comment::whereHasMorph('commentable', '*', function ($query) {
+    use Illuminate\Database\Eloquent\Builder;
+
+    $comments = App\Comment::whereHasMorph('commentable', '*', function (Builder $query) {
         $query->where('title', 'like', 'foo%');
     })->get();
 
@@ -976,7 +989,9 @@ If you want to count the number of results from a relationship without actually 
 
 You may add the "counts" for multiple relations as well as add constraints to the queries:
 
-    $posts = App\Post::withCount(['votes', 'comments' => function ($query) {
+    use Illuminate\Database\Eloquent\Builder;
+
+    $posts = App\Post::withCount(['votes', 'comments' => function (Builder $query) {
         $query->where('content', 'like', 'foo%');
     }])->get();
 
@@ -985,9 +1000,11 @@ You may add the "counts" for multiple relations as well as add constraints to th
 
 You may also alias the relationship count result, allowing multiple counts on the same relationship:
 
+    use Illuminate\Database\Eloquent\Builder;
+
     $posts = App\Post::withCount([
         'comments',
-        'comments as pending_comments_count' => function ($query) {
+        'comments as pending_comments_count' => function (Builder $query) {
             $query->where('approved', false);
         }
     ])->get();
@@ -1085,8 +1102,10 @@ In this example, let's assume `Event`, `Photo`, and `Post` models may create `Ac
 
 Using these model definitions and relationships, we may retrieve `ActivityFeed` model instances and eager load all `parentable` models and their respective nested relationships:
 
+    use Illuminate\Database\Eloquent\Relations\MorphTo;
+
     $activities = ActivityFeed::query()
-        ->with(['parentable' => function ($morphTo) {
+        ->with(['parentable' => function (MorphTo $morphTo) {
             $morphTo->morphWith([
                 Event::class => ['calendar'],
                 Photo::class => ['tags'],
@@ -1325,7 +1344,7 @@ To populate the default model with attributes, you may pass an array or Closure 
      */
     public function user()
     {
-        return $this->belongsTo('App\User')->withDefault(function ($user) {
+        return $this->belongsTo('App\User')->withDefault(function ($user, $post) {
             $user->name = 'Guest Author';
         });
     }

@@ -184,10 +184,15 @@ If necessary, you may define the path where Passport's keys should be loaded fro
         Passport::loadKeysFrom('/secret-keys/oauth');
     }
 
-Additionally, you may load the keys from environment variables:
+Additionally, you may publish Passport's configuration file using `php artisan vendor:publish --tag=passport-config`, which will then provide the option to load the encryption keys from your environment variables:
 
-    PASSPORT_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\\n<private key here>\\n-----END RSA PRIVATE KEY-----"
-    PASSPORT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\\n<public key here>\\n-----END PUBLIC KEY-----\\n"
+    PASSPORT_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----
+    <private key here>
+    -----END RSA PRIVATE KEY-----"
+
+    PASSPORT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----
+    <public key here>
+    -----END PUBLIC KEY-----"
 
 <a name="configuration"></a>
 ## Configuration
@@ -337,12 +342,15 @@ This route is used to delete clients:
 
 Once a client has been created, developers may use their client ID and secret to request an authorization code and access token from your application. First, the consuming application should make a redirect request to your application's `/oauth/authorize` route like so:
 
-    Route::get('/redirect', function () {
+    Route::get('/redirect', function (Request $request) {
+        $request->session()->put('state', $state = Str::random(40));
+
         $query = http_build_query([
             'client_id' => 'client-id',
             'redirect_uri' => 'http://example.com/callback',
             'response_type' => 'code',
             'scope' => '',
+            'state' => $state,
         ]);
 
         return redirect('http://your-app.com/oauth/authorize?'.$query);
@@ -375,15 +383,22 @@ Sometimes you may wish to skip the authorization prompt, such as when authorizin
          */
         public function skipsAuthorization()
         {
-            return $this->first_party;
+            return $this->firstParty();
         }
     }
 
 #### Converting Authorization Codes To Access Tokens
 
-If the user approves the authorization request, they will be redirected back to the consuming application. The consumer should then issue a `POST` request to your application to request an access token. The request should include the authorization code that was issued by your application when the user approved the authorization request. In this example, we'll use the Guzzle HTTP library to make the `POST` request:
+If the user approves the authorization request, they will be redirected back to the consuming application. The consumer should first verify the `state` parameter against the value that was stored prior to the redirect. If the state parameter matches the consumer should issue a `POST` request to your application to request an access token. The request should include the authorization code that was issued by your application when the user approved the authorization request. In this example, we'll use the Guzzle HTTP library to make the `POST` request:
 
     Route::get('/callback', function (Request $request) {
+        $state = $request->session()->pull('state');
+
+        throw_unless(
+            strlen($state) > 0 && $state === $request->state,
+            InvalidArgumentException::class
+        );
+
         $http = new GuzzleHttp\Client;
 
         $response = $http->post('http://your-app.com/oauth/token', [
@@ -554,12 +569,15 @@ The implicit grant is similar to the authorization code grant; however, the toke
 
 Once a grant has been enabled, developers may use their client ID to request an access token from your application. The consuming application should make a redirect request to your application's `/oauth/authorize` route like so:
 
-    Route::get('/redirect', function () {
+    Route::get('/redirect', function (Request $request) {
+        $request->session()->put('state', $state = Str::random(40));
+
         $query = http_build_query([
             'client_id' => 'client-id',
             'redirect_uri' => 'http://example.com/callback',
             'response_type' => 'token',
             'scope' => '',
+            'state' => $state,
         ]);
 
         return redirect('http://your-app.com/oauth/authorize?'.$query);

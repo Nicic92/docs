@@ -6,6 +6,7 @@
 - [Creating Jobs](#creating-jobs)
     - [Generating Job Classes](#generating-job-classes)
     - [Class Structure](#class-structure)
+    - [Job Middleware](#job-middleware)
 - [Dispatching Jobs](#dispatching-jobs)
     - [Delayed Dispatching](#delayed-dispatching)
     - [Synchronous Dispatching](#synchronous-dispatching)
@@ -175,6 +176,80 @@ If you would like to take total control over how the container injects dependenc
 
 > {note} Binary data, such as raw image contents, should be passed through the `base64_encode` function before being passed to a queued job. Otherwise, the job may not properly serialize to JSON when being placed on the queue.
 
+<a name="job-middleware"></a>
+### Job Middleware
+
+Job middleware allow you wrap custom logic around the execution of queued jobs, reducing boilerplate in the jobs themselves. For example, consider the following `handle` method which leverages Laravel's Redis rate limiting features to allow only one job to process every five seconds:
+
+    /**
+     * Execute the job.
+     *
+     * @return void
+     */
+    public function handle()
+    {
+        Redis::throttle('key')->block(0)->allow(1)->every(5)->then(function () {
+            info('Lock obtained...');
+
+            // Handle job...
+        }, function () {
+            // Could not obtain lock...
+
+            return $this->release(5);
+        });
+    }
+
+While this code is valid, the structure of the `handle` method becomes noisy since it is cluttered with Redis rate limiting logic. In addition, this rate limiting logic must be duplicated for any other jobs that we want to rate limit. 
+
+Instead of rate limiting in the handle method, we could define a job middleware that handles rate limiting. Laravel does not have a default location for job middleware, so you are welcome to place job middleware anywhere in your application. In this example, we will place the middleware in a `app/Jobs/Middleware` directory:
+
+    <?php
+
+    namespace App\Jobs\Middleware;
+
+    use Illuminate\Support\Facades\Redis;
+
+    class RateLimited
+    {
+        /**
+         * Process the queued job.
+         *
+         * @param  mixed  $job
+         * @param  callable  $next
+         * @return mixed
+         */
+        public function handle($job, $next)
+        {
+            Redis::throttle('key')
+                    ->block(0)->allow(1)->every(5)
+                    ->then(function () use ($job, $next) {
+                        // Lock obtained...
+
+                        $next($job);
+                    }, function () use ($job) {
+                        // Could not obtain lock...
+
+                        $job->release(5);
+                    });
+        }
+    }
+
+As you can see, like [route middleware](/docs/{{version}}/middleware), job middleware receive the job being processed and a callback that should be invoked to continue processing the job. 
+
+After creating job middleware, they may be attached to a job by returning them from the job's `middleware` method. This method does not exist on jobs scaffolded by the `make:job` Artisan command, so you will need to add it to your own job class definition:
+
+    use App\Jobs\Middleware\RateLimited;
+
+    /**
+     * Get the middlewarwe the job should pass through.
+     *
+     * @return array
+     */
+    public function middleware()
+    {
+        return [new RateLimited];
+    }
+
 <a name="dispatching-jobs"></a>
 ## Dispatching Jobs
 
@@ -268,7 +343,7 @@ If you would like to dispatch a job immediately (synchronously), you may use the
 <a name="job-chaining"></a>
 ### Job Chaining
 
-Job chaining allows you to specify a list of queued jobs that should be run in sequence. If one job in the sequence fails, the rest of the jobs will not be run. To execute a queued job chain, you may use the `withChain` method on any of your dispatchable jobs:
+Job chaining allows you to specify a list of queued jobs that should be run in sequence after the primary job has executed successfully. If one job in the sequence fails, the rest of the jobs will not be run. To execute a queued job chain, you may use the `withChain` method on any of your dispatchable jobs:
 
     ProcessPodcast::withChain([
         new OptimizePodcast,
@@ -495,6 +570,10 @@ Laravel includes a queue worker that will process new jobs as they are pushed on
 
 Remember, queue workers are long-lived processes and store the booted application state in memory. As a result, they will not notice changes in your code base after they have been started. So, during your deployment process, be sure to [restart your queue workers](#queue-workers-and-deployment).
 
+Alternatively, you may run the `queue:listen` command. When using the `queue:listen` command, you don't have to manually restart the worker after your code is changed; however, this command is not as efficient as `queue:work`:
+
+    php artisan queue:listen
+
 #### Specifying The Connection & Queue
 
 You may also specify which queue connection the worker should utilize. The connection name passed to the `work` command should correspond to one of the connections defined in your `config/queue.php` configuration file:
@@ -616,7 +695,7 @@ Sometimes your queued jobs will fail. Don't worry, things don't always go as pla
 
     php artisan migrate
 
-Then, when running your [queue worker](#running-the-queue-worker), you should specify the maximum number of times a job should be attempted using the `--tries` switch on the `queue:work` command. If you do not specify a value for the `--tries` option, jobs will be attempted indefinitely:
+Then, when running your [queue worker](#running-the-queue-worker), you can specify the maximum number of times a job should be attempted using the `--tries` switch on the `queue:work` command. If you do not specify a value for the `--tries` option, jobs will only be attempted once:
 
     php artisan queue:work redis --tries=3
 

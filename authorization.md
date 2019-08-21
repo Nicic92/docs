@@ -4,12 +4,14 @@
 - [Gates](#gates)
     - [Writing Gates](#writing-gates)
     - [Authorizing Actions](#authorizing-actions-via-gates)
+    - [Gate Responses](#gate-responses)
     - [Intercepting Gate Checks](#intercepting-gate-checks)
 - [Creating Policies](#creating-policies)
     - [Generating Policies](#generating-policies)
     - [Registering Policies](#registering-policies)
 - [Writing Policies](#writing-policies)
     - [Policy Methods](#policy-methods)
+    - [Policy Responses](#policy-responses)
     - [Methods Without Models](#methods-without-models)
     - [Guest Users](#guest-users)
     - [Policy Filters](#policy-filters)
@@ -45,6 +47,10 @@ Gates are Closures that determine if a user is authorized to perform a given act
     {
         $this->registerPolicies();
 
+        Gate::define('edit-settings', function ($user) {
+            return $user->isAdmin;
+        });
+
         Gate::define('update-post', function ($user, $post) {
             return $user->id == $post->user_id;
         });
@@ -69,6 +75,10 @@ Gates may also be defined using a `Class@method` style callback string, like con
 
 To authorize an action using gates, you should use the `allows` or `denies` methods. Note that you are not required to pass the currently authenticated user to these methods. Laravel will automatically take care of passing the user into the gate Closure:
 
+    if (Gate::allows('edit-settings')) {
+        // The current user can edit settings
+    }
+
     if (Gate::allows('update-post', $post)) {
         // The current user can update the post...
     }
@@ -87,8 +97,56 @@ If you would like to determine if a particular user is authorized to perform an 
         // The user can't update the post...
     }
 
+You may authorize multiple actions at a time with the `any` or `none` methods:
+
+    if (Gate::any(['update-post', 'delete-post'], $post)) {
+        // The user can update or delete the post
+    }
+
+    if (Gate::none(['update-post', 'delete-post'], $post)) {
+        // The user cannot update or delete the post
+    }
+
+#### Authorizing Or Throwing Exceptions
+
+If you would like to attempt to authorize an action and automatically throw an `Illuminate\Auth\Access\AuthorizationException` if the user is not allowed to perform the given action, you may use the `Gate::authorize` method. Instances of `AuthorizationException` are automatically converted to `403` HTTP response:
+
+    Gate::authorize('update-post', $post);
+
+    // The action is authorized...
+
+<a name="gate-responses"></a>
+### Gate Responses
+
+So far, we have only examined gates that return simple boolean values. However, sometimes you may wish to return a more detail response, including an error message. To do so, you may return a `Illuminate\Auth\Access\Response` from your gate:
+
+    use Illuminate\Support\Facades\Gate;
+    use Illuminate\Auth\Access\Response;
+
+    Gate::define('edit-settings', function ($user) {
+        return $user->isAdmin
+                    ? Response::allow()
+                    : Response::deny('You must be a super administrator.');
+    });
+
+When returning an authorization response from your gate, the `Gate::allows` method will still return a simple boolean value; however, you may use use the `Gate::inspect` method to get the full authorization response returned by the gate:
+
+    $response = Gate::inspect('edit-settings', $post);
+
+    if ($response->allowed()) {
+        // The action is authorized...
+    } else {
+        echo $response->message();
+    }
+
+Of course, when using the `Gate::authorize` method to throw an `AuthorizationException` if the action is not authorized, the error message provided by the authorization response will be propagated to the HTTP response:
+
+    Gate::authorize('edit-settings', $post);
+
+    // The action is authorized...
+
 <a name="intercepting-gate-checks"></a>
-#### Intercepting Gate Checks
+### Intercepting Gate Checks
 
 Sometimes, you may wish to grant all abilities to a specific user. You may use the `before` method to define a callback that is run before all other authorization checks:
 
@@ -215,6 +273,43 @@ The `update` method will receive a `User` and a `Post` instance as its arguments
 You may continue to define additional methods on the policy as needed for the various actions it authorizes. For example, you might define `view` or `delete` methods to authorize various `Post` actions, but remember you are free to give your policy methods any name you like.
 
 > {tip} If you used the `--model` option when generating your policy via the Artisan console, it will already contain methods for the `view`, `create`, `update`, `delete`, `restore`, and `forceDelete` actions.
+
+<a name="policy-responses"></a>
+### Policy Responses
+
+So far, we have only examined policy methods that return simple boolean values. However, sometimes you may wish to return a more detail response, including an error message. To do so, you may return a `Illuminate\Auth\Access\Response` from your policy method:
+
+    use Illuminate\Auth\Access\Response;
+
+    /**
+     * Determine if the given post can be updated by the user.
+     *
+     * @param  \App\User  $user
+     * @param  \App\Post  $post
+     * @return bool
+     */
+    public function update(User $user, Post $post)
+    {
+        return $user->id === $post->user_id
+                    ? Response::allow()
+                    : Response::deny('You do not own this post.');
+    }
+
+When returning an authorization response from your policy, the `Gate::allows` method will still return a simple boolean value; however, you may use use the `Gate::inspect` method to get the full authorization response returned by the gate:
+
+    $response = Gate::inspect('update', $post);
+
+    if ($response->allowed()) {
+        // The action is authorized...
+    } else {
+        echo $response->message();
+    }
+
+Of course, when using the `Gate::authorize` method to throw an `AuthorizationException` if the action is not authorized, the error message provided by the authorization response will be propagated to the HTTP response:
+
+    Gate::authorize('update', $post);
+
+    // The action is authorized...
 
 <a name="methods-without-models"></a>
 ### Methods Without Models
@@ -397,6 +492,7 @@ The following controller methods will be mapped to their corresponding policy me
 
 | Controller Method | Policy Method |
 | --- | --- |
+| index | viewAny |
 | show | view |
 | create | create |
 | store | create |
@@ -435,10 +531,10 @@ These directives are convenient shortcuts for writing `@if` and `@unless` statem
 
 You may also determine if a user has any authorization ability from a given list of abilities. To accomplish this, use the `@canany` directive:
 
-    @canany(['update', 'view'])
-        //
-    @elsecanany(['create', 'delete'])
-        //
+    @canany(['update', 'view', 'delete'], $post)
+        // The current user can update, view, or delete the post
+    @elsecanany(['create'], \App\Post::class)
+        // The current user can create a post
     @endcanany
 
 #### Actions That Don't Require Models

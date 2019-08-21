@@ -239,10 +239,12 @@ Command  |  Description
 `$table->mediumInteger('votes');`  |  MEDIUMINT equivalent column.
 `$table->mediumText('description');`  |  MEDIUMTEXT equivalent column.
 `$table->morphs('taggable');`  |  Adds `taggable_id` UNSIGNED BIGINT and `taggable_type` VARCHAR equivalent columns.
+`$table->uuidMorphs('taggable');`  |  Adds `taggable_id` CHAR(36) and `taggable_type` VARCHAR(255) UUID equivalent columns.
 `$table->multiLineString('positions');`  |  MULTILINESTRING equivalent column.
 `$table->multiPoint('positions');`  |  MULTIPOINT equivalent column.
 `$table->multiPolygon('positions');`  |  MULTIPOLYGON equivalent column.
 `$table->nullableMorphs('taggable');`  |  Adds nullable versions of `morphs()` columns.
+`$table->nullableUuidMorphs('taggable');`  |  Adds nullable versions of `uuidMorphs()` columns.
 `$table->nullableTimestamps();`  |  Alias of `timestamps()` method.
 `$table->point('position');`  |  POINT equivalent column.
 `$table->polygon('positions');`  |  POLYGON equivalent column.
@@ -287,7 +289,7 @@ Modifier  |  Description
 `->after('column')`  |  Place the column "after" another column (MySQL)
 `->autoIncrement()`  |  Set INTEGER columns as auto-increment (primary key)
 `->charset('utf8')`  |  Specify a character set for the column (MySQL)
-`->collation('utf8_unicode_ci')`  |  Specify a collation for the column (MySQL/SQL Server)
+`->collation('utf8_unicode_ci')`  |  Specify a collation for the column (MySQL/PostgreSQL/SQL Server)
 `->comment('my comment')`  |  Add a comment to a column (MySQL/PostgreSQL)
 `->default($value)`  |  Specify a "default" value for the column
 `->first()`  |  Place the column "first" in the table (MySQL)

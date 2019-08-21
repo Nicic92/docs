@@ -109,6 +109,13 @@ To get a better understanding of the `validate` method, let's jump back into the
 
 As you can see, we pass the desired validation rules into the `validate` method. Again, if the validation fails, the proper response will automatically be generated. If the validation passes, our controller will continue executing normally.
 
+Alternatively, validation rules may be specified as arrays of rules instead of a single `|` delimited string:
+
+    $validatedData = $request->validate([
+        'title' => ['required', 'unique:posts', 'max:255'],
+        'body' => ['required'],
+    ]);
+
 #### Stopping On First Validation Failure
 
 Sometimes you may wish to stop running validation rules on an attribute after the first validation failure. To do so, assign the `bail` rule to the attribute:
@@ -744,7 +751,21 @@ When working with arrays, the field under validation must not have any duplicate
 <a name="rule-email"></a>
 #### email
 
-The field under validation must be formatted as an e-mail address.
+The field under validation must be formatted as an e-mail address. Under the hood, this validation rule makes use of the [`egulias/email-validator`](https://github.com/egulias/EmailValidator) package for validating the email address. By default the `RFCValidation` validator is applied, but you can apply other validation styles as well:
+
+    'email' => 'email:rfc,dns'
+
+The example above will apply the `RFCValidation` and `DNSCheckValidation` validations. Here's a full list of validation styles you can apply:
+
+<div class="content-list" markdown="1">
+- `rfc`: `RFCValidation`
+- `strict`: `NoRFCWarningsValidation`
+- `dns`: `DNSCheckValidation`
+- `spoof`: `SpoofCheckValidation`
+- `filter`: `FilterEmailValidation`
+</div>
+
+The `filter` validator, which uses PHP's `filter_var` function under the hood, ships with Laravel and is Laravel's pre-5.8 behavior.
 
 <a name="rule-ends-with"></a>
 #### ends_with:_foo_,_bar_,...
@@ -806,7 +827,7 @@ The field under validation must be greater than or equal to the given _field_. T
 <a name="rule-image"></a>
 #### image
 
-The file under validation must be an image (jpeg, png, bmp, gif, or svg)
+The file under validation must be an image (jpeg, png, bmp, gif, svg, or webp)
 
 <a name="rule-in"></a>
 #### in:_foo_,_bar_,...
@@ -831,6 +852,8 @@ The field under validation must exist in _anotherfield_'s values.
 #### integer
 
 The field under validation must be an integer.
+
+> {note} This validation rule does not verify that the input is of the "integer" variable type, only that the input is a string or numeric value that contains an integer.
 
 <a name="rule-ip"></a>
 #### ip
