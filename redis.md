@@ -19,7 +19,7 @@ Alternatively, you can install the `predis/predis` package via Composer:
 
     composer require predis/predis
 
-> {note} Maintenance of Predis has been abandoned by the original author of the package and will be removed from Laravel in the 7.0 release.
+> {note} Predis has been abandoned by the package's original author and may be removed from Laravel in a future release.
 
 <a name="configuration"></a>
 ### Configuration
@@ -119,6 +119,10 @@ The PhpRedis extension is configured as default at `REDIS_CLIENT` env and in you
         // Rest of Redis configuration...
     ],
 
+If you plan to use PhpRedis extension along with the `Redis` Facade alias, you should rename it to something else, like `RedisManager`, to avoid a collision with the Redis class. You can do that in the aliases section of your `app.php` config file.
+
+    'RedisManager' => Illuminate\Support\Facades\Redis::class,
+
 In addition to the default `host`, `port`, `database`, and `password` server configuration options, PhpRedis supports the following additional connection parameters: `persistent`, `prefix`, `read_timeout` and `timeout`. You may add any of these options to your Redis server configuration in the `config/database.php` configuration file:
 
     'default' => [
@@ -128,6 +132,10 @@ In addition to the default `host`, `port`, `database`, and `password` server con
         'database' => 0,
         'read_timeout' => 60,
     ],
+
+#### The Redis Facade
+
+To avoid class naming collisions with the Redis PHP extension itself, you will need to delete or rename the `Illuminate\Support\Facades\Redis` facade alias from your `app` configuration file's `aliases` array. Generally, you should remove this alias entirely and only reference the facade by its fully qualified class name while using the Redis PHP extension.
 
 <a name="interacting-with-redis"></a>
 ## Interacting With Redis

@@ -7,6 +7,8 @@
 - [Higher Order Messages](#higher-order-messages)
 - [Lazy Collections](#lazy-collections)
     - [Introduction](#lazy-collection-introduction)
+    - [The Enumerable Contract](#the-enumerable-contract)
+    - [Lazy Collection Methods](#lazy-collection-methods)
 
 <a name="introduction"></a>
 ## Introduction
@@ -75,6 +77,7 @@ For the remainder of this documentation, we'll discuss each method available on 
 [avg](#method-avg)
 [chunk](#method-chunk)
 [collapse](#method-collapse)
+[collect](#method-collect)
 [combine](#method-combine)
 [concat](#method-concat)
 [contains](#method-contains)
@@ -146,6 +149,7 @@ For the remainder of this documentation, we'll discuss each method available on 
 [search](#method-search)
 [shift](#method-shift)
 [shuffle](#method-shuffle)
+[skip](#method-skip)
 [slice](#method-slice)
 [some](#method-some)
 [sort](#method-sort)
@@ -275,6 +279,39 @@ The `combine` method combines the values of the collection, as keys, with the va
     $combined->all();
 
     // ['name' => 'George', 'age' => 29]
+
+<a name="method-collect"></a>
+#### `collect()` {#collection-method}
+
+The `collect` method returns a new `Collection` instance with the items currently in the collection:
+
+    $collectionA = collect([1, 2, 3]);
+
+    $collectionB = $collectionA->collect();
+
+    $collectionB->all();
+
+    // [1, 2, 3]
+
+The `collect` method is primarily useful for converting [lazy collections](#lazy-collections) into standard `Collection` instances:
+
+    $lazyCollection = LazyCollection::make(function () {
+        yield 1;
+        yield 2;
+        yield 3;
+    });
+
+    $collection = $lazyCollection->collect();
+
+    get_class($collection);
+
+    // 'Illuminate\Support\Collection'
+
+    $collection->all();
+
+    // [1, 2, 3]
+
+> {tip} The `collect` method is especially useful when you have an instance of `Enumerable` and need a non-lazy collection instance. Since `collect()` is part of the `Enumerable` contract, you can safely use it to get a `Collection` instance.
 
 <a name="method-concat"></a>
 #### `concat()` {#collection-method}
@@ -455,7 +492,7 @@ The `diffAssoc` method compares the collection against another collection or a p
         'color' => 'yellow',
         'type' => 'fruit',
         'remain' => 3,
-        'used' => 6
+        'used' => 6,
     ]);
 
     $diff->all();
@@ -1642,6 +1679,19 @@ The `shuffle` method randomly shuffles the items in the collection:
 
     // [3, 2, 5, 1, 4] - (generated randomly)
 
+<a name="method-skip"></a>
+#### `skip()` {#collection-method}
+
+The `skip` method returns a new collection, without the first given amount of items:
+
+    $collection = collect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+
+    $collection = $collection->skip(4);
+
+    $collection->all();
+
+    // [5, 6, 7, 8, 9, 10]
+
 <a name="method-slice"></a>
 #### `slice()` {#collection-method}
 
@@ -2236,6 +2286,25 @@ The `where` method filters the collection by a given key / value pair:
 
 The `where` method uses "loose" comparisons when checking item values, meaning a string with an integer value will be considered equal to an integer of the same value. Use the [`whereStrict`](#method-wherestrict) method to filter using "strict" comparisons.
 
+Optionally, you may pass a comparison operator as the second parameter.
+
+    $collection = collect([
+        ['name' => 'Jim', 'deleted_at' => '2019-01-01 00:00:00'],
+        ['name' => 'Sally', 'deleted_at' => '2019-01-02 00:00:00'],
+        ['name' => 'Sue', 'deleted_at' => null],
+    ]);
+
+    $filtered = $collection->where('deleted_at', '!=', null);
+
+    $filtered->all();
+
+    /*
+        [
+            ['name' => 'Jim', 'deleted_at' => '2019-01-01 00:00:00'],
+            ['name' => 'Sally', 'deleted_at' => '2019-01-02 00:00:00'],
+        ]
+    */
+
 <a name="method-wherestrict"></a>
 #### `whereStrict()` {#collection-method}
 
@@ -2472,4 +2541,145 @@ To create a lazy collection instance, you should pass a PHP generator function t
         while (($line = fgets($handle)) !== false) {
             yield $line;
         }
-    })l
+    });
+
+<a name="the-enumerable-contract"></a>
+### The Enumerable Contract
+
+Almost all methods available on the `Collection` class are also available on the `LazyCollection` class. Both of these classes implement the `Illuminate\Support\Enumerable` contract, which defines the following methods:
+
+<div id="collection-method-list" markdown="1">
+
+[all](#method-all)
+[average](#method-average)
+[avg](#method-avg)
+[chunk](#method-chunk)
+[collapse](#method-collapse)
+[collect](#method-collect)
+[combine](#method-combine)
+[concat](#method-concat)
+[contains](#method-contains)
+[containsStrict](#method-containsstrict)
+[count](#method-count)
+[countBy](#method-countBy)
+[crossJoin](#method-crossjoin)
+[dd](#method-dd)
+[diff](#method-diff)
+[diffAssoc](#method-diffassoc)
+[diffKeys](#method-diffkeys)
+[dump](#method-dump)
+[duplicates](#method-duplicates)
+[duplicatesStrict](#method-duplicatesstrict)
+[each](#method-each)
+[eachSpread](#method-eachspread)
+[every](#method-every)
+[except](#method-except)
+[filter](#method-filter)
+[first](#method-first)
+[firstWhere](#method-first-where)
+[flatMap](#method-flatmap)
+[flatten](#method-flatten)
+[flip](#method-flip)
+[forPage](#method-forpage)
+[get](#method-get)
+[groupBy](#method-groupby)
+[has](#method-has)
+[implode](#method-implode)
+[intersect](#method-intersect)
+[intersectByKeys](#method-intersectbykeys)
+[isEmpty](#method-isempty)
+[isNotEmpty](#method-isnotempty)
+[join](#method-join)
+[keyBy](#method-keyby)
+[keys](#method-keys)
+[last](#method-last)
+[macro](#method-macro)
+[make](#method-make)
+[map](#method-map)
+[mapInto](#method-mapinto)
+[mapSpread](#method-mapspread)
+[mapToGroups](#method-maptogroups)
+[mapWithKeys](#method-mapwithkeys)
+[max](#method-max)
+[median](#method-median)
+[merge](#method-merge)
+[mergeRecursive](#method-mergerecursive)
+[min](#method-min)
+[mode](#method-mode)
+[nth](#method-nth)
+[only](#method-only)
+[pad](#method-pad)
+[partition](#method-partition)
+[pipe](#method-pipe)
+[pluck](#method-pluck)
+[random](#method-random)
+[reduce](#method-reduce)
+[reject](#method-reject)
+[replace](#method-replace)
+[replaceRecursive](#method-replacerecursive)
+[reverse](#method-reverse)
+[search](#method-search)
+[shuffle](#method-shuffle)
+[skip](#method-skip)
+[slice](#method-slice)
+[some](#method-some)
+[sort](#method-sort)
+[sortBy](#method-sortby)
+[sortByDesc](#method-sortbydesc)
+[sortKeys](#method-sortkeys)
+[sortKeysDesc](#method-sortkeysdesc)
+[split](#method-split)
+[sum](#method-sum)
+[take](#method-take)
+[tap](#method-tap)
+[times](#method-times)
+[toArray](#method-toarray)
+[toJson](#method-tojson)
+[union](#method-union)
+[unique](#method-unique)
+[uniqueStrict](#method-uniquestrict)
+[unless](#method-unless)
+[unlessEmpty](#method-unlessempty)
+[unlessNotEmpty](#method-unlessnotempty)
+[unwrap](#method-unwrap)
+[values](#method-values)
+[when](#method-when)
+[whenEmpty](#method-whenempty)
+[whenNotEmpty](#method-whennotempty)
+[where](#method-where)
+[whereStrict](#method-wherestrict)
+[whereBetween](#method-wherebetween)
+[whereIn](#method-wherein)
+[whereInStrict](#method-whereinstrict)
+[whereInstanceOf](#method-whereinstanceof)
+[whereNotBetween](#method-wherenotbetween)
+[whereNotIn](#method-wherenotin)
+[whereNotInStrict](#method-wherenotinstrict)
+[wrap](#method-wrap)
+[zip](#method-zip)
+
+</div>
+
+> {note} Methods that mutate the collection (such as `shift`, `pop`, `prepend` etc.) are are _not_ available on the `LazyCollection` class.
+
+<a name="lazy-collection-methods"></a>
+### Lazy Collection Methods
+
+In addition to the methods defined in the `Enumerable` contract, the `LazyCollection` class contains the following methods:
+
+<a name="method-tapEach"></a>
+#### `tapEach()` {#collection-method}
+
+While the `each` method calls the given callback for each item in the collection right away, the `tapEach` method only calls the given callback as the items are being pulled out of the list one by one:
+
+    $lazyCollection = LazyCollection::times(INF)->tapEach(function ($value) {
+        dump($value);
+    });
+
+    // Nothing has been dumped so far...
+
+    $array = $lazyCollection->take(3)->all();
+
+    // 1
+    // 2
+    // 3

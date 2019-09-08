@@ -53,7 +53,7 @@ Gates are Closures that determine if a user is authorized to perform a given act
         });
 
         Gate::define('update-post', function ($user, $post) {
-            return $user->id == $post->user_id;
+            return $user->id === $post->user_id;
         });
     }
 
@@ -578,7 +578,7 @@ When authorizing actions using policies, you may pass an array as the second arg
     public function update(User $user, Post $post, int $category)
     {
         return $user->id === $post->user_id && 
-               $category->group > 3;
+               $category > 3;
     }
 
 When attempting to determine if the authenticated user can update a given post, we can invoke this policy method like so:
