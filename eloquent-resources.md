@@ -318,13 +318,13 @@ If you would like to disable the wrapping of the outer-most resource, you may us
 
     namespace App\Providers;
 
-    use Illuminate\Http\Resources\Json\Resource;
+    use Illuminate\Http\Resources\Json\JsonResource;
     use Illuminate\Support\ServiceProvider;
 
     class AppServiceProvider extends ServiceProvider
     {
         /**
-         * Register bindings in the container.
+         * Register any application services.
          *
          * @return void
          */
@@ -340,7 +340,7 @@ If you would like to disable the wrapping of the outer-most resource, you may us
          */
         public function boot()
         {
-            Resource::withoutWrapping();
+            JsonResource::withoutWrapping();
         }
     }
 
@@ -660,7 +660,7 @@ As you have already read, resources may be returned directly from routes and con
         return new UserResource(User::find(1));
     });
 
-However, sometimes you may need to customize the outgoing HTTP response before it is sent to the client. There are two ways to accomplish this. First, you may chain the `response` method onto the resource. This method will return an `Illuminate\Http\Response` instance, allowing you full control of the response's headers:
+However, sometimes you may need to customize the outgoing HTTP response before it is sent to the client. There are two ways to accomplish this. First, you may chain the `response` method onto the resource. This method will return an `Illuminate\Http\JsonResponse` instance, allowing you full control of the response's headers:
 
     use App\Http\Resources\User as UserResource;
     use App\User;
