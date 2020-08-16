@@ -51,7 +51,8 @@ Next, you are ready to authenticate users! You will need two routes: one for red
 
     namespace App\Http\Controllers\Auth;
 
-    use Socialite;
+    use App\Http\Controllers\Controller;
+    use Laravel\Socialite\Facades\Socialite;
 
     class LoginController extends Controller
     {
@@ -118,6 +119,8 @@ The `stateless` method may be used to disable session state verification. This i
 
     return Socialite::driver('google')->stateless()->user();
 
+> {note} Stateless authentication is not available for the Twitter driver, which uses OAuth 1.0 for authentication.
+
 <a name="retrieving-user-details"></a>
 ## Retrieving User Details
 
@@ -146,7 +149,7 @@ Once you have a user instance, you can grab a few more details about the user:
 If you already have a valid access token for a user, you can retrieve their details using the `userFromToken` method:
 
     $user = Socialite::driver('github')->userFromToken($token);
-    
+
 #### Retrieving User Details From A Token And Secret (OAuth1)
 
 If you already have a valid pair of token / secret for a user, you can retrieve their details using the `userFromTokenAndSecret` method:

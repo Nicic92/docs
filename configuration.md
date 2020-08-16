@@ -79,7 +79,7 @@ You may also pass arguments to the `environment` method to check if the environm
 <a name="hiding-environment-variables-from-debug"></a>
 ### Hiding Environment Variables From Debug Pages
 
-When an exception is uncaught and the `APP_DEBUG` environment variable is `true`, the debug page will show all environment variables and their contents. In some cases you may want to obscure certain variables. You may do this by updating the `debug_blacklist` option in your `config/app.php` configuration file.
+When an exception is uncaught and the `APP_DEBUG` environment variable is `true`, the debug page will show all environment variables and their contents. In some cases you may want to obscure certain variables. You may do this by updating the `debug_hide` option in your `config/app.php` configuration file.
 
 Some variables are available in both the environment variables and the server / request data. Therefore, you may need to blacklist them for both `$_ENV` and `$_SERVER`:
 
@@ -87,7 +87,7 @@ Some variables are available in both the environment variables and the server / 
 
         // ...
 
-        'debug_blacklist' => [
+        'debug_hide' => [
             '_ENV' => [
                 'APP_KEY',
                 'DB_PASSWORD',
@@ -110,6 +110,9 @@ Some variables are available in both the environment variables and the server / 
 You may easily access your configuration values using the global `config` helper function from anywhere in your application. The configuration values may be accessed using "dot" syntax, which includes the name of the file and option you wish to access. A default value may also be specified and will be returned if the configuration option does not exist:
 
     $value = config('app.timezone');
+
+    // Retrieve a default value if the configuration value does not exist...
+    $value = config('app.timezone', 'Asia/Seoul');
 
 To set configuration values at runtime, pass an array to the `config` helper:
 

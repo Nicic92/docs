@@ -2,14 +2,14 @@
 
 - [Versioning Scheme](#versioning-scheme)
 - [Support Policy](#support-policy)
-- [Laravel 7](#laravel-7)
+- [Laravel 8](#laravel-8)
 
 <a name="versioning-scheme"></a>
 ## Versioning Scheme
 
-Laravel and its other first-party packages follow [Semantic Versioning](https://semver.org). Major framework releases are released every six months (February and August), while minor and patch releases may be released as often as every week. Minor and patch releases should **never** contain breaking changes.
+Laravel and its other first-party packages follow [Semantic Versioning](https://semver.org). Major framework releases are released every six months (~February and ~August), while minor and patch releases may be released as often as every week. Minor and patch releases should **never** contain breaking changes.
 
-When referencing the Laravel framework or its components from your application or package, you should always use a version constraint such as `^7.0`, since major releases of Laravel do include breaking changes. However, we strive to always ensure you may update to a new major release in one day or less.
+When referencing the Laravel framework or its components from your application or package, you should always use a version constraint such as `^8.0`, since major releases of Laravel do include breaking changes. However, we strive to always ensure you may update to a new major release in one day or less.
 
 <a name="support-policy"></a>
 ## Support Policy
@@ -23,8 +23,10 @@ For LTS releases, such as Laravel 6, bug fixes are provided for 2 years and secu
 | 5.7 | September 4th, 2018 | March 4th, 2019 | September 4th, 2019 |
 | 5.8 | February 26th, 2019 | August 26th, 2019 | February 26th, 2020 |
 | 6 (LTS) | September 3rd, 2019 | September 3rd, 2021 | September 3rd, 2022 |
+| 7 | March 3rd, 2020 | September 3rd, 2020 | March 3rd, 2021 |
+| 8 | ??, 2020 | ??, 2021 | ??, 2021 |
 
-<a name="laravel-7"></a>
-## Laravel 7
+<a name="laravel-8"></a>
+## Laravel 8
 
-Release notes will be placed here.
+Release notes for Laravel 8 will be placed here.

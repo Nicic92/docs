@@ -57,8 +57,6 @@ Typically, events should be registered via the `EventServiceProvider` `$listen` 
      */
     public function boot()
     {
-        parent::boot();
-
         Event::listen('event.name', function ($foo, $bar) {
             //
         });
@@ -74,8 +72,6 @@ You may even register listeners using the `*` as a wildcard parameter, allowing 
 
 <a name="event-discovery"></a>
 ### Event Discovery
-
-> {note} Event Discovery is available for Laravel 5.8.9 or later.
 
 Instead of registering events and listeners manually in the `$listen` array of the `EventServiceProvider`, you can enable automatic event discovery. When event discovery is enabled, Laravel will automatically find and register your events and listeners by scanning your application's `Listeners` directory. In addition, any explicitly defined events listed in the `EventServiceProvider` will still be registered.
 
@@ -137,11 +133,13 @@ An event class is a data container which holds the information related to the ev
     namespace App\Events;
 
     use App\Order;
+    use Illuminate\Broadcasting\InteractsWithSockets;
+    use Illuminate\Foundation\Events\Dispatchable;
     use Illuminate\Queue\SerializesModels;
 
     class OrderShipped
     {
-        use SerializesModels;
+        use Dispatchable, InteractsWithSockets, SerializesModels;
 
         public $order;
 
@@ -256,9 +254,21 @@ If you would like to customize the queue connection, queue name, or queue delay 
         public $delay = 60;
     }
 
+If you would like to define the listener's queue at runtime, you may define a `viaQueue` method on the listener:
+
+    /**
+     * Get the name of the listener's queue.
+     *
+     * @return string
+     */
+    public function viaQueue()
+    {
+        return 'listeners';
+    }
+
 #### Conditionally Queueing Listeners
 
-Sometimes, you may need to determine whether a listener should be queued based on some data that's only available at runtime. To accomplish this, a `shouldQueue` method may be added to a listener to determine whether the listener should be queued and executed synchronously:
+Sometimes, you may need to determine whether a listener should be queued based on some data that's only available at runtime. To accomplish this, a `shouldQueue` method may be added to a listener to determine whether the listener should be queued. If the `shouldQueue` method returns `false`, the listener will not be executed:
 
     <?php
 
@@ -394,6 +404,10 @@ To dispatch an event, you may pass an instance of the event to the `event` helpe
             event(new OrderShipped($order));
         }
     }
+
+Alternatively, if your event uses the `Illuminate\Foundation\Events\Dispatchable` trait, you may call the static `dispatch` method on the event. Any arguments passed to the `dispatch` method will be passed to the event's constructor:
+
+    OrderShipped::dispatch($order);
 
 > {tip} When testing, it can be helpful to assert that certain events were dispatched without actually triggering their listeners. Laravel's [built-in testing helpers](/docs/{{version}}/mocking#event-fake) makes it a cinch.
 

@@ -79,11 +79,23 @@ When using Channels and [Laravel Echo](#installing-laravel-echo), you should spe
         key: 'your-pusher-channels-key'
     });
 
+Finally, you will need to change your broadcast driver to `pusher` in your `.env` file:
+
+    BROADCAST_DRIVER=pusher
+
+#### Pusher Compatible Laravel Websockets
+
+The [laravel-websockets](https://github.com/beyondcode/laravel-websockets) is a pure PHP, Pusher compatible websocket package for Laravel. This package allows you to leverage the full power of Laravel broadcasting without an external websocket provider or Node. For more information on installing and using this package, please consult its [official documentation](https://beyondco.de/docs/laravel-websockets).
+
 #### Redis
 
 If you are using the Redis broadcaster, you should either install the phpredis PHP extension via PECL or install the Predis library via Composer:
 
     composer require predis/predis
+
+Next, you should update your broadcast driver to `redis` in your `.env` file:
+
+    BROADCAST_DRIVER=redis
 
 The Redis broadcaster will broadcast messages using Redis' pub / sub feature; however, you will need to pair this with a WebSocket server that can receive the messages from Redis and broadcast them to your WebSocket channels.
 
@@ -118,6 +130,8 @@ Before broadcasting events, you will also need to configure and run a [queue lis
 Laravel's event broadcasting allows you to broadcast your server-side Laravel events to your client-side JavaScript application using a driver-based approach to WebSockets. Currently, Laravel ships with [Pusher Channels](https://pusher.com/channels) and Redis drivers. The events may be easily consumed on the client-side using the [Laravel Echo](#installing-laravel-echo) Javascript package.
 
 Events are broadcast over "channels", which may be specified as public or private. Any visitor to your application may subscribe to a public channel without any authentication or authorization; however, in order to subscribe to a private channel, a user must be authenticated and authorized to listen on that channel.
+
+> {tip} If you would like to use an open source, PHP driven alternative to Pusher, check out the [laravel-websockets](https://github.com/beyondcode/laravel-websockets) package.
 
 <a name="using-example-application"></a>
 ### Using An Example Application
@@ -370,7 +384,7 @@ Just like HTTP routes, channel routes may also take advantage of implicit and ex
 
 Private and presence broadcast channels authenticate the current user via your application's default authentication guard. If the user is not authenticated, channel authorization is automatically denied and the authorization callback is never executed. However, you may assign multiple, custom guards that should authenticate the incoming request if necessary:
 
-    Broadcast::channel('channel', function() {
+    Broadcast::channel('channel', function () {
         // ...
     }, ['guards' => ['web', 'admin']]);
 

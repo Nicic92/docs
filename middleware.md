@@ -146,6 +146,22 @@ When assigning middleware, you may also pass the fully qualified class name:
         //
     })->middleware(CheckAge::class);
 
+When assigning middleware to a group of routes, you may occasionally need to prevent the middleware from being applied to an individual route within the group. You may accomplish this using the `withoutMiddleware` method:
+
+    use App\Http\Middleware\CheckAge;
+
+    Route::middleware([CheckAge::class])->group(function () {
+        Route::get('/', function () {
+            //
+        });
+
+        Route::get('admin/profile', function () {
+            //
+        })->withoutMiddleware([CheckAge::class]);
+    });
+
+The `withoutMiddleware` method can only remove route middleware and does not apply to [global middleware](#global-middleware).
+
 <a name="middleware-groups"></a>
 ### Middleware Groups
 
@@ -183,8 +199,8 @@ Middleware groups may be assigned to routes and controller actions using the sam
     Route::group(['middleware' => ['web']], function () {
         //
     });
-    
-    Route::middleware(['web', 'subscribed'])->group(function () { 
+
+    Route::middleware(['web', 'subscribed'])->group(function () {
         //
     });
 
@@ -205,7 +221,8 @@ Rarely, you may need your middleware to execute in a specific order but not have
     protected $middlewarePriority = [
         \Illuminate\Session\Middleware\StartSession::class,
         \Illuminate\View\Middleware\ShareErrorsFromSession::class,
-        \App\Http\Middleware\Authenticate::class,
+        \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+        \Illuminate\Routing\Middleware\ThrottleRequests::class,
         \Illuminate\Session\Middleware\AuthenticateSession::class,
         \Illuminate\Routing\Middleware\SubstituteBindings::class,
         \Illuminate\Auth\Middleware\Authorize::class,
@@ -277,4 +294,16 @@ Sometimes a middleware may need to do some work after the HTTP response has been
 
 The `terminate` method should receive both the request and the response. Once you have defined a terminable middleware, you should add it to the list of route or global middleware in the `app/Http/Kernel.php` file.
 
-When calling the `terminate` method on your middleware, Laravel will resolve a fresh instance of the middleware from the [service container](/docs/{{version}}/container). If you would like to use the same middleware instance when the `handle` and `terminate` methods are called, register the middleware with the container using the container's `singleton` method.
+When calling the `terminate` method on your middleware, Laravel will resolve a fresh instance of the middleware from the [service container](/docs/{{version}}/container). If you would like to use the same middleware instance when the `handle` and `terminate` methods are called, register the middleware with the container using the container's `singleton` method. Typically this should be done in the `register` method of your `AppServiceProvider.php`:
+
+    use App\Http\Middleware\TerminableMiddleware;
+
+    /**
+     * Register any application services.
+     *
+     * @return void
+     */
+    public function register()
+    {
+        $this->app->singleton(TerminableMiddleware::class);
+    }

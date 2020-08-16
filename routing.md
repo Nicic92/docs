@@ -11,7 +11,7 @@
 - [Route Groups](#route-groups)
     - [Middleware](#route-group-middleware)
     - [Namespaces](#route-group-namespaces)
-    - [Sub-Domain Routing](#route-group-sub-domain-routing)
+    - [Subdomain Routing](#route-group-subdomain-routing)
     - [Route Prefixes](#route-group-prefixes)
     - [Route Name Prefixes](#route-group-name-prefixes)
 - [Route Model Binding](#route-model-binding)
@@ -21,6 +21,7 @@
 - [Rate Limiting](#rate-limiting)
 - [Form Method Spoofing](#form-method-spoofing)
 - [Accessing The Current Route](#accessing-the-current-route)
+- [Cross-Origin Resource Sharing (CORS)](#cors)
 
 <a name="basic-routing"></a>
 ## Basic Routing
@@ -64,7 +65,7 @@ Sometimes you may need to register a route that responds to multiple HTTP verbs.
 
 #### CSRF Protection
 
-Any HTML forms pointing to `POST`, `PUT`, or `DELETE` routes that are defined in the `web` routes file should include a CSRF token field. Otherwise, the request will be rejected. You can read more about CSRF protection in the [CSRF documentation](/docs/{{version}}/csrf):
+Any HTML forms pointing to `POST`, `PUT`, `PATCH`, or `DELETE` routes that are defined in the `web` routes file should include a CSRF token field. Otherwise, the request will be rejected. You can read more about CSRF protection in the [CSRF documentation](/docs/{{version}}/csrf):
 
     <form method="POST" action="/profile">
         @csrf
@@ -158,8 +159,6 @@ If you would like a route parameter to always be constrained by a given regular 
     public function boot()
     {
         Route::pattern('id', '[0-9]+');
-
-        parent::boot();
     }
 
 Once the pattern has been defined, it is automatically applied to all routes using that parameter name:
@@ -192,6 +191,8 @@ You may also specify route names for controller actions:
 
     Route::get('user/profile', 'UserProfileController@show')->name('profile');
 
+> {note} Route names should always be unique.
+
 #### Generating URLs To Named Routes
 
 Once you have assigned a name to a given route, you may use the route's name when generating URLs or redirects via the global `route` function:
@@ -219,6 +220,8 @@ If you pass additional parameters in the array, those key / value pairs will aut
     $url = route('profile', ['id' => 1, 'photos' => 'yes']);
 
     // /user/1/profile?photos=yes
+
+> {tip} Sometimes, you may wish to specify request-wide default values for URL parameters, such as the current locale. To accomplish this, you may use the [`URL::defaults` method](/docs/{{version}}/urls#default-values).
 
 #### Inspecting The Current Route
 
@@ -273,10 +276,10 @@ Another common use-case for route groups is assigning the same PHP namespace to 
 
 Remember, by default, the `RouteServiceProvider` includes your route files within a namespace group, allowing you to register controller routes without specifying the full `App\Http\Controllers` namespace prefix. So, you only need to specify the portion of the namespace that comes after the base `App\Http\Controllers` namespace.
 
-<a name="route-group-sub-domain-routing"></a>
-### Sub-Domain Routing
+<a name="route-group-subdomain-routing"></a>
+### Subdomain Routing
 
-Route groups may also be used to handle sub-domain routing. Sub-domains may be assigned route parameters just like route URIs, allowing you to capture a portion of the sub-domain for usage in your route or controller. The sub-domain may be specified by calling the `domain` method before defining the group:
+Route groups may also be used to handle subdomain routing. Subdomains may be assigned route parameters just like route URIs, allowing you to capture a portion of the subdomain for usage in your route or controller. The subdomain may be specified by calling the `domain` method before defining the group:
 
     Route::domain('{account}.myapp.com')->group(function () {
         Route::get('user/{id}', function ($account, $id) {
@@ -284,7 +287,7 @@ Route groups may also be used to handle sub-domain routing. Sub-domains may be a
         });
     });
 
-> {note} In order to ensure your sub-domain routes are reachable, you should register sub-domain routes before registering root domain routes. This will prevent root domain routes from overwriting sub-domain routes which have the same URI path.
+> {note} In order to ensure your subdomain routes are reachable, you should register subdomain routes before registering root domain routes. This will prevent root domain routes from overwriting subdomain routes which have the same URI path.
 
 <a name="route-group-prefixes"></a>
 ### Route Prefixes
@@ -324,9 +327,30 @@ Laravel automatically resolves Eloquent models defined in routes or controller a
 
 Since the `$user` variable is type-hinted as the `App\User` Eloquent model and the variable name matches the `{user}` URI segment, Laravel will automatically inject the model instance that has an ID matching the corresponding value from the request URI. If a matching model instance is not found in the database, a 404 HTTP response will automatically be generated.
 
-#### Customizing The Key Name
+#### Customizing The Key
 
-If you would like model binding to use a database column other than `id` when retrieving a given model class, you may override the `getRouteKeyName` method on the Eloquent model:
+Sometimes you may wish to resolve Eloquent models using a column other than `id`. To do so, you may specify the column in the route parameter definition:
+
+    Route::get('api/posts/{post:slug}', function (App\Post $post) {
+        return $post;
+    });
+
+#### Custom Keys & Scoping
+
+Sometimes, when implicitly binding multiple Eloquent models in a single route definition, you may wish to scope the second Eloquent model such that it must be a child of the first Eloquent model. For example, consider this situation that retrieves a blog post by slug for a specific user:
+
+    use App\Post;
+    use App\User;
+
+    Route::get('api/users/{user}/posts/{post:slug}', function (User $user, Post $post) {
+        return $post;
+    });
+
+When using a custom keyed implicit binding as a nested route parameter, Laravel will automatically scope the query to retrieve the nested model by its parent using conventions to guess the relationship name on the parent. In this case, it will be assumed that the `User` model has a relationship named `posts` (the plural of the route parameter name) which can be used to retrieve the `Post` model.
+
+#### Customizing The Default Key Name
+
+If you would like model binding to use a default database column other than `id` when retrieving a given model class, you may override the `getRouteKeyName` method on the Eloquent model:
 
     /**
      * Get the route key for the model.
@@ -345,8 +369,6 @@ To register an explicit binding, use the router's `model` method to specify the 
 
     public function boot()
     {
-        parent::boot();
-
         Route::model('user', App\User::class);
     }
 
@@ -371,8 +393,6 @@ If you wish to use your own resolution logic, you may use the `Route::bind` meth
      */
     public function boot()
     {
-        parent::boot();
-
         Route::bind('user', function ($value) {
             return App\User::where('name', $value)->firstOrFail();
         });
@@ -384,9 +404,10 @@ Alternatively, you may override the `resolveRouteBinding` method on your Eloquen
      * Retrieve the model for a bound value.
      *
      * @param  mixed  $value
+     * @param  string|null  $field
      * @return \Illuminate\Database\Eloquent\Model|null
      */
-    public function resolveRouteBinding($value)
+    public function resolveRouteBinding($value, $field = null)
     {
         return $this->where('name', $value)->firstOrFail();
     }
@@ -439,6 +460,24 @@ You may also combine this functionality with dynamic rate limits. For example, i
         });
     });
 
+#### Rate Limit Segments
+
+Typically, you will probably specify one rate limit for your entire API. However, your application may require different rate limits for different segments of your API. If this is the case, you will need to pass a segment name as the third argument to the `throttle` middleware:
+
+    Route::middleware('auth:api')->group(function () {
+        Route::middleware('throttle:60,1,default')->group(function () {
+            Route::get('/servers', function () {
+                //
+            });
+        });
+
+        Route::middleware('throttle:60,1,deletes')->group(function () {
+            Route::delete('/servers/{id}', function () {
+                //
+            });
+        });
+    });
+
 <a name="form-method-spoofing"></a>
 ## Form Method Spoofing
 
@@ -468,3 +507,10 @@ You may use the `current`, `currentRouteName`, and `currentRouteAction` methods 
     $action = Route::currentRouteAction();
 
 Refer to the API documentation for both the [underlying class of the Route facade](https://laravel.com/api/{{version}}/Illuminate/Routing/Router.html) and [Route instance](https://laravel.com/api/{{version}}/Illuminate/Routing/Route.html) to review all accessible methods.
+
+<a name="cors"></a>
+## Cross-Origin Resource Sharing (CORS)
+
+Laravel can automatically respond to CORS OPTIONS requests with values that you configure. All CORS settings may be configured in your `cors` configuration file and OPTIONS requests will automatically be handled by the `HandleCors` middleware that is included by default in your global middleware stack.
+
+> {tip} For more information on CORS and CORS headers, please consult the [MDN web documentation on CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#The_HTTP_response_headers).

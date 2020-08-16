@@ -285,7 +285,7 @@ The `update` method will receive a `User` and a `Post` instance as its arguments
 
 You may continue to define additional methods on the policy as needed for the various actions it authorizes. For example, you might define `view` or `delete` methods to authorize various `Post` actions, but remember you are free to give your policy methods any name you like.
 
-> {tip} If you used the `--model` option when generating your policy via the Artisan console, it will already contain methods for the `view`, `create`, `update`, `delete`, `restore`, and `forceDelete` actions.
+> {tip} If you used the `--model` option when generating your policy via the Artisan console, it will already contain methods for the `viewAny`, `view`, `create`, `update`, `delete`, `restore`, and `forceDelete` actions.
 
 <a name="policy-responses"></a>
 ### Policy Responses
@@ -483,7 +483,7 @@ As previously discussed, some actions like `create` may not require a model inst
 
 If you are utilizing [resource controllers](/docs/{{version}}/controllers#resource-controllers), you may make use of the `authorizeResource` method in the controller's constructor. This method will attach the appropriate `can` middleware definitions to the resource controller's methods.
 
-The `authorizeResource` method accepts the model's class name as its first argument, and the name of the route / request parameter that will contain the model's ID as its second argument:
+The `authorizeResource` method accepts the model's class name as its first argument, and the name of the route / request parameter that will contain the model's ID as its second argument. You should ensure your [resource controller](/docs/{{version}}/controllers#resource-controllers) is created with the `--model` flag to have the required method signatures and type hints:
 
     <?php
 
@@ -527,9 +527,9 @@ When writing Blade templates, you may wish to display a portion of the page only
     @endcan
 
     @cannot('update', $post)
-        <!-- The Current User Can't Update The Post -->
+        <!-- The Current User Cannot Update The Post -->
     @elsecannot('create', App\Post::class)
-        <!-- The Current User Can't Create New Post -->
+        <!-- The Current User Cannot Create A New Post -->
     @endcannot
 
 These directives are convenient shortcuts for writing `@if` and `@unless` statements. The `@can` and `@cannot` statements above respectively translate to the following statements:
@@ -539,7 +539,7 @@ These directives are convenient shortcuts for writing `@if` and `@unless` statem
     @endif
 
     @unless (Auth::user()->can('update', $post))
-        <!-- The Current User Can't Update The Post -->
+        <!-- The Current User Cannot Update The Post -->
     @endunless
 
 You may also determine if a user has any authorization ability from a given list of abilities. To accomplish this, use the `@canany` directive:

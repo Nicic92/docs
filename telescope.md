@@ -26,6 +26,7 @@
     - [Redis Watcher](#redis-watcher)
     - [Request Watcher](#request-watcher)
     - [Schedule Watcher](#schedule-watcher)
+- [Displaying User Avatars](#displaying-user-avatars)
 
 <a name="introduction"></a>
 ## Introduction
@@ -71,9 +72,20 @@ After running `telescope:install`, you should remove the `TelescopeServiceProvid
     public function register()
     {
         if ($this->app->isLocal()) {
+            $this->app->register(\Laravel\Telescope\TelescopeServiceProvider::class);
             $this->app->register(TelescopeServiceProvider::class);
         }
     }
+
+You should also prevent the Telescope package from being [auto-discovered](/docs/{{version}}/packages#package-discovery) by adding the following to your `composer.json` file:
+
+    "extra": {
+        "laravel": {
+            "dont-discover": [
+                "laravel/telescope"
+            ]
+        }
+    },
 
 <a name="migration-customization"></a>
 ### Migration Customization
@@ -120,6 +132,8 @@ Telescope exposes a dashboard at `/telescope`. By default, you will only be able
             ]);
         });
     }
+
+> {note} You should ensure you change your `APP_ENV` environment variable to `production` in your production environment. Otherwise, your Telescope installation will be publicly available.
 
 <a name="filtering"></a>
 ## Filtering
@@ -321,8 +335,6 @@ The query watcher records the raw SQL, bindings, and execution time for all quer
 <a name="redis-watcher"></a>
 ### Redis Watcher
 
-> {note} Redis events must be enabled for the Redis watcher to function. You may enable Redis events by calling `Redis::enableEvents()` in the `boot` method of your `app/Providers/AppServiceProvider.php` file.
-
 The Redis watcher records all Redis commands executed by your application. If you are using Redis for caching, cache commands will also be recorded by the Redis Watcher.
 
 <a name="request-watcher"></a>
@@ -342,3 +354,23 @@ The request watcher records the request, headers, session, and response data ass
 ### Schedule Watcher
 
 The schedule watcher records the command and output of any scheduled tasks run by your application.
+
+<a name="displaying-user-avatars"></a>
+## Displaying User Avatars
+
+The Telescope dashboard displays the user avatar for the user that was logged in when a given entry was saved. By default, Telescope will retrieve avatars using the Gravatar web service. However, you may customize the avatar URL by registering a callback in your `TelescopeServiceProvider`. The callback will receive the user's ID and email address and should return the user's avatar image URL:
+
+    use App\User;
+    use Laravel\Telescope\Telescope;
+
+    /**
+     * Register any application services.
+     *
+     * @return void
+     */
+    public function register()
+    {
+        Telescope::avatar(function ($id, $email) {
+            return '/avatars/'.User::find($id)->avatar_path;
+        });
+    }

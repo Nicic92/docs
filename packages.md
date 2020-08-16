@@ -7,9 +7,11 @@
 - [Resources](#resources)
     - [Configuration](#configuration)
     - [Migrations](#migrations)
+    - [Factories](#factories)
     - [Routes](#routes)
     - [Translations](#translations)
     - [Views](#views)
+    - [View Components](#view-components)
 - [Commands](#commands)
 - [Public Assets](#public-assets)
 - [Publishing File Groups](#publishing-file-groups)
@@ -151,6 +153,25 @@ If your package contains [database migrations](/docs/{{version}}/migrations), yo
 
 Once your package's migrations have been registered, they will automatically be run when the `php artisan migrate` command is executed. You do not need to export them to the application's main `database/migrations` directory.
 
+<a name="factories"></a>
+### Factories
+
+If your package contains [database factories](/docs/{{version}}/database-testing#writing-factories), you may use the `loadFactoriesFrom` method to inform Laravel how to load them. The `loadFactoriesFrom` method accepts the path to your package's factories as its only argument:
+
+    /**
+     * Bootstrap any application services.
+     *
+     * @return void
+     */
+    public function boot()
+    {
+        $this->loadFactoriesFrom(__DIR__.'/path/to/factories');
+    }
+
+Once your package's factories have been registered, you can use them in your application:
+
+    factory(Package\Namespace\Model::class)->create();
+
 <a name="translations"></a>
 ### Translations
 
@@ -234,6 +255,30 @@ If you would like to make your views available for publishing to the application
     }
 
 Now, when users of your package execute Laravel's `vendor:publish` Artisan command, your package's views will be copied to the specified publish location.
+
+<a name="view-components"></a>
+### View Components
+
+If your package contains [view components](/docs/{{version}}/blade#components), you may use the `loadViewComponentsAs` method to inform Laravel how to load them. The `loadViewComponentsAs` method accepts two arguments: the tag prefix for your view components and an array of your view components class. For example, if your package's prefix is `courier` and you have `Alert` and `Button` view components, you would add the following to your service provider's `boot` method:
+
+    /**
+     * Bootstrap any application services.
+     *
+     * @return void
+     */
+    public function boot()
+    {
+        $this->loadViewComponentsAs('courier', [
+            Alert::class,
+            Button::class,
+        ]);
+    }
+
+Once your view components are registered in a service provider, you may reference them in your view like so:
+
+    <x-courier-alert />
+
+    <x-courier-button />
 
 <a name="commands"></a>
 ## Commands

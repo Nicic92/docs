@@ -35,7 +35,7 @@
 
 Laravel queues provide a unified API across a variety of different queue backends, such as Beanstalk, Amazon SQS, Redis, or even a relational database. Queues allow you to defer the processing of a time consuming task, such as sending an email, until a later time. Deferring these time consuming tasks drastically speeds up web requests to your application.
 
-The queue configuration file is stored in `config/queue.php`. In this file you will find connection configurations for each of the queue drivers that are included with the framework, which includes a database, [Beanstalkd](https://kr.github.io/beanstalkd/), [Amazon SQS](https://aws.amazon.com/sqs/), [Redis](https://redis.io),  and a synchronous driver that will execute jobs immediately (for local use). A `null` queue driver is also included which discards queued jobs.
+The queue configuration file is stored in `config/queue.php`. In this file you will find connection configurations for each of the queue drivers that are included with the framework, which includes a database, [Beanstalkd](https://beanstalkd.github.io/), [Amazon SQS](https://aws.amazon.com/sqs/), [Redis](https://redis.io),  and a synchronous driver that will execute jobs immediately (for local use). A `null` queue driver is also included which discards queued jobs.
 
 <a name="connections-vs-queues"></a>
 ### Connections Vs. Queues
@@ -93,7 +93,7 @@ Adjusting this value based on your queue load can be more efficient than continu
         'retry_after' => 90,
         'block_for' => 5,
     ],
-    
+
 > {note} Setting `block_for` to `0` will cause queue workers to block indefinitely until a job is available. This will also prevent signals such as `SIGTERM` from being handled until the next job has been processed.
 
 #### Other Driver Prerequisites
@@ -117,6 +117,8 @@ By default, all of the queueable jobs for your application are stored in the `ap
     php artisan make:job ProcessPodcast
 
 The generated class will implement the `Illuminate\Contracts\Queue\ShouldQueue` interface, indicating to Laravel that the job should be pushed onto the queue to run asynchronously.
+
+> {tip} Job stubs may be customized using [stub publishing](/docs/{{version}}/artisan#stub-customization)
 
 <a name="class-structure"></a>
 ### Class Structure
@@ -164,7 +166,7 @@ Job classes are very simple, normally containing only a `handle` method which is
         }
     }
 
-In this example, note that we were able to pass an [Eloquent model](/docs/{{version}}/eloquent) directly into the queued job's constructor. Because of the `SerializesModels` trait that the job is using, Eloquent models will be gracefully serialized and unserialized when the job is processing. If your queued job accepts an Eloquent model in its constructor, only the identifier for the model will be serialized onto the queue. When the job is actually handled, the queue system will automatically re-retrieve the full model instance from the database. It's all totally transparent to your application and prevents issues that can arise from serializing full Eloquent model instances.
+In this example, note that we were able to pass an [Eloquent model](/docs/{{version}}/eloquent) directly into the queued job's constructor. Because of the `SerializesModels` trait that the job is using, Eloquent models and their loaded relationships will be gracefully serialized and unserialized when the job is processing. If your queued job accepts an Eloquent model in its constructor, only the identifier for the model will be serialized onto the queue. When the job is actually handled, the queue system will automatically re-retrieve the full model instance and its loaded relationships from the database. It's all totally transparent to your application and prevents issues that can arise from serializing full Eloquent model instances.
 
 The `handle` method is called when the job is processed by the queue. Note that we are able to type-hint dependencies on the `handle` method of the job. The Laravel [service container](/docs/{{version}}/container) automatically injects these dependencies.
 
@@ -178,10 +180,25 @@ If you would like to take total control over how the container injects dependenc
 
 > {note} Binary data, such as raw image contents, should be passed through the `base64_encode` function before being passed to a queued job. Otherwise, the job may not properly serialize to JSON when being placed on the queue.
 
+#### Handling Relationships
+
+Because loaded relationships also get serialized, the serialized job string can become quite large. To prevent relations from being serialized, you can call the `withoutRelations` method on the model when setting a property value. This method will return an instance of the model with no loaded relationships:
+
+    /**
+     * Create a new job instance.
+     *
+     * @param  \App\Podcast  $podcast
+     * @return void
+     */
+    public function __construct(Podcast $podcast)
+    {
+        $this->podcast = $podcast->withoutRelations();
+    }
+
 <a name="job-middleware"></a>
 ### Job Middleware
 
-Job middleware allow you wrap custom logic around the execution of queued jobs, reducing boilerplate in the jobs themselves. For example, consider the following `handle` method which leverages Laravel's Redis rate limiting features to allow only one job to process every five seconds:
+Job middleware allow you to wrap custom logic around the execution of queued jobs, reducing boilerplate in the jobs themselves. For example, consider the following `handle` method which leverages Laravel's Redis rate limiting features to allow only one job to process every five seconds:
 
     /**
      * Execute the job.
@@ -281,6 +298,12 @@ Once you have written your job class, you may dispatch it using the `dispatch` m
         }
     }
 
+If you would like to conditionally dispatch a job, you may use the `dispatchIf` and `dispatchUnless` methods:
+
+    ProcessPodcast::dispatchIf($accountActive === true, $podcast);
+
+    ProcessPodcast::dispatchUnless($accountSuspended === false, $podcast);
+
 <a name="delayed-dispatching"></a>
 ### Delayed Dispatching
 
@@ -313,10 +336,27 @@ If you would like to delay the execution of a queued job, you may use the `delay
 
 > {note} The Amazon SQS queue service has a maximum delay time of 15 minutes.
 
+#### Dispatching After The Response Is Sent To Browser
+
+Alternatively, the `dispatchAfterResponse` method delays dispatching a job until after the response is sent to the user's browser. This will still allow the user to begin using the application even though a queued job is still executing. This should typically only be used for jobs that take about a second, such as sending an email:
+
+    use App\Jobs\SendNotification;
+
+    SendNotification::dispatchAfterResponse();
+
+You may `dispatch` a Closure and chain the `afterResponse` method onto the helper to execute a Closure after the response has been sent to the browser:
+
+    use App\Mail\WelcomeMessage;
+    use Illuminate\Support\Facades\Mail;
+
+    dispatch(function () {
+        Mail::to('taylor@laravel.com')->send(new WelcomeMessage);
+    })->afterResponse();
+
 <a name="synchronous-dispatching"></a>
 ### Synchronous Dispatching
 
-If you would like to dispatch a job immediately (synchronously), you may use the `dispatchNow` method. When using this method, the job will not be queued and will be run immediately within the current process:
+If you would like to dispatch a job immediately (synchronously), you may use the `dispatchSync` method. When using this method, the job will not be queued and will be run immediately within the current process:
 
     <?php
 
@@ -338,7 +378,7 @@ If you would like to dispatch a job immediately (synchronously), you may use the
         {
             // Create podcast...
 
-            ProcessPodcast::dispatchNow($podcast);
+            ProcessPodcast::dispatchSync($podcast);
         }
     }
 
@@ -350,6 +390,16 @@ Job chaining allows you to specify a list of queued jobs that should be run in s
     ProcessPodcast::withChain([
         new OptimizePodcast,
         new ReleasePodcast
+    ])->dispatch();
+
+In addition to chaining job class instances, you may also chain Closures:
+
+    ProcessPodcast::withChain([
+        new OptimizePodcast,
+        new ReleasePodcast,
+        function () {
+            Podcast::update(...);
+        },
     ])->dispatch();
 
 > {note} Deleting jobs using the `$this->delete()` method will not prevent chained jobs from being processed. The chain will only stop executing if a job in the chain fails.
@@ -428,22 +478,6 @@ You may chain the `onConnection` and `onQueue` methods to specify the connection
                   ->onConnection('sqs')
                   ->onQueue('processing');
 
-Alternatively, you may specify the `connection` as a property on the job class:
-
-    <?php
-
-    namespace App\Jobs;
-
-    class ProcessPodcast implements ShouldQueue
-    {
-        /**
-         * The queue connection that should handle the job.
-         *
-         * @var string
-         */
-        public $connection = 'sqs';
-    }
-
 <a name="max-job-attempts-and-timeout"></a>
 ### Specifying Max Job Attempts / Timeout Values
 
@@ -485,6 +519,48 @@ As an alternative to defining how many times a job may be attempted before it fa
     }
 
 > {tip} You may also define a `retryUntil` method on your queued event listeners.
+
+#### Max Exceptions
+
+Sometimes you may wish to specify that a job may be attempted many times, but should fail if the retries are triggered by a given number of exceptions. To accomplish this, you may define a `maxExceptions` property on your job class:
+
+    <?php
+
+    namespace App\Jobs;
+
+    class ProcessPodcast implements ShouldQueue
+    {
+        /**
+         * The number of times the job may be attempted.
+         *
+         * @var int
+         */
+        public $tries = 25;
+
+        /**
+         * The maximum number of exceptions to allow before failing.
+         *
+         * @var int
+         */
+        public $maxExceptions = 3;
+
+        /**
+         * Execute the job.
+         *
+         * @return void
+         */
+        public function handle()
+        {
+            Redis::throttle('key')->allow(10)->every(60)->then(function () {
+                // Lock obtained, process the podcast...
+            }, function () {
+                // Unable to obtain lock...
+                return $this->release(10);
+            });
+        }
+    }
+
+In this example, the job is released for ten seconds if the application is unable to obtain a Redis lock and will continue to be retried up to 25 times. However, the job will fail if three unhandled exceptions are thrown by the job.
 
 #### Timeout
 
@@ -570,9 +646,9 @@ Laravel includes a queue worker that will process new jobs as they are pushed on
 
 > {tip} To keep the `queue:work` process running permanently in the background, you should use a process monitor such as [Supervisor](#supervisor-configuration) to ensure that the queue worker does not stop running.
 
-Remember, queue workers are long-lived processes and store the booted application state in memory. As a result, they will not notice changes in your code base after they have been started. So, during your deployment process, be sure to [restart your queue workers](#queue-workers-and-deployment).
+Remember, queue workers are long-lived processes and store the booted application state in memory. As a result, they will not notice changes in your code base after they have been started. So, during your deployment process, be sure to [restart your queue workers](#queue-workers-and-deployment). In addition, remember that any static state created or modified by your application will not be automatically reset between jobs.
 
-Alternatively, you may run the `queue:listen` command. When using the `queue:listen` command, you don't have to manually restart the worker after your code is changed; however, this command is not as efficient as `queue:work`:
+Alternatively, you may run the `queue:listen` command. When using the `queue:listen` command, you don't have to manually restart the worker when you want to reload your updated code or reset the application state; however, this command is not as efficient as `queue:work`:
 
     php artisan queue:listen
 
@@ -582,7 +658,7 @@ You may also specify which queue connection the worker should utilize. The conne
 
     php artisan queue:work redis
 
-You may customize your queue worker even further by only processing particular queues for a given connection. For example, if all of your emails are processed in an `emails` queue on your `redis` queue connection, you may issue the following command to start a worker that only processes only that queue:
+You may customize your queue worker even further by only processing particular queues for a given connection. For example, if all of your emails are processed in an `emails` queue on your `redis` queue connection, you may issue the following command to start a worker that only processes that queue:
 
     php artisan queue:work redis --queue=emails
 
@@ -635,7 +711,7 @@ In your `config/queue.php` configuration file, each queue connection defines a `
 
 #### Worker Timeouts
 
-The `queue:work` Artisan command exposes a `--timeout` option. The `--timeout` option specifies how long the Laravel queue master process will wait before killing off a child queue worker that is processing a job. Sometimes a child queue process can become "frozen" for various reasons, such as an external HTTP call that is not responding. The `--timeout` option removes frozen processes that have exceeded that specified time limit:
+The `queue:work` Artisan command exposes a `--timeout` option. The `--timeout` option specifies how long the Laravel queue master process will wait before killing off a child queue worker that is processing a job. Sometimes a child queue process can become "frozen" for various reasons. The `--timeout` option removes frozen processes that have exceeded that specified time limit:
 
     php artisan queue:work --timeout=60
 
@@ -673,8 +749,11 @@ Supervisor configuration files are typically stored in the `/etc/supervisor/conf
     numprocs=8
     redirect_stderr=true
     stdout_logfile=/home/forge/app.com/worker.log
+    stopwaitsecs=3600
 
 In this example, the `numprocs` directive will instruct Supervisor to run 8 `queue:work` processes and monitor all of them, automatically restarting them if they fail. You should change the `queue:work sqs` portion of the `command` directive to reflect your desired queue connection.
+
+> {note} You should ensure that the value of `stopwaitsecs` is greater than the number of seconds consumed by your longest running job. Otherwise, Supervisor may kill the job before it is finished processing.
 
 #### Starting Supervisor
 
@@ -714,6 +793,18 @@ If you would like to configure the failed job retry delay on a per-job basis, yo
      */
     public $retryAfter = 3;
 
+If you require more complex logic for determining the retry delay, you may define a `retryAfter` method on your queued job class:
+
+    /**
+    * Calculate the number of seconds to wait before retrying the job.
+    *
+    * @return int
+    */
+    public function retryAfter()
+    {
+        return 3;
+    }
+
 <a name="cleaning-up-after-failed-jobs"></a>
 ### Cleaning Up After Failed Jobs
 
@@ -740,7 +831,7 @@ You may define a `failed` method directly on your job class, allowing you to per
         /**
          * Create a new job instance.
          *
-         * @param  Podcast  $podcast
+         * @param  \App\Podcast  $podcast
          * @return void
          */
         public function __construct(Podcast $podcast)
@@ -751,7 +842,7 @@ You may define a `failed` method directly on your job class, allowing you to per
         /**
          * Execute the job.
          *
-         * @param  AudioProcessor  $processor
+         * @param  \App\AudioProcessor  $processor
          * @return void
          */
         public function handle(AudioProcessor $processor)
@@ -760,9 +851,9 @@ You may define a `failed` method directly on your job class, allowing you to per
         }
 
         /**
-         * The job failed to process.
+         * Handle a job failure.
          *
-         * @param  Exception  $exception
+         * @param  \Exception  $exception
          * @return void
          */
         public function failed(Exception $exception)
@@ -821,6 +912,12 @@ To view all of your failed jobs that have been inserted into your `failed_jobs` 
 The `queue:failed` command will list the job ID, connection, queue, and failure time. The job ID may be used to retry the failed job. For instance, to retry a failed job that has an ID of `5`, issue the following command:
 
     php artisan queue:retry 5
+
+If necessary, you may pass multiple IDs or an ID range (when using numeric IDs) to the command:
+
+    php artisan queue:retry 5 6 7 8 9 10
+
+    php artisan queue:retry --range=5-10
 
 To retry all of your failed jobs, execute the `queue:retry` command and pass `all` as the ID:
 

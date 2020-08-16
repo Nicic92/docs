@@ -12,6 +12,7 @@
     - [Authorizing Form Requests](#authorizing-form-requests)
     - [Customizing The Error Messages](#customizing-the-error-messages)
     - [Customizing The Validation Attributes](#customizing-the-validation-attributes)
+    - [Prepare Input For Validation](#prepare-input-for-validation)
 - [Manually Creating Validators](#manually-creating-validators)
     - [Automatic Redirection](#automatic-redirection)
     - [Named Error Bags](#named-error-bags)
@@ -30,7 +31,7 @@
 <a name="introduction"></a>
 ## Introduction
 
-Laravel provides several different approaches to validate your application's incoming data. By default, Laravel's base controller class uses a `ValidatesRequests` trait which provides a convenient method to validate incoming HTTP request with a variety of powerful validation rules.
+Laravel provides several different approaches to validate your application's incoming data. By default, Laravel's base controller class uses a `ValidatesRequests` trait which provides a convenient method to validate incoming HTTP requests with a variety of powerful validation rules.
 
 <a name="validation-quickstart"></a>
 ## Validation Quickstart
@@ -112,6 +113,13 @@ As you can see, we pass the desired validation rules into the `validate` method.
 Alternatively, validation rules may be specified as arrays of rules instead of a single `|` delimited string:
 
     $validatedData = $request->validate([
+        'title' => ['required', 'unique:posts', 'max:255'],
+        'body' => ['required'],
+    ]);
+
+You may use the `validateWithBag` method to validate a request and store any error messages within a [named error bag](#named-error-bags):
+
+    $validatedData = $request->validateWithBag('post', [
         'title' => ['required', 'unique:posts', 'max:255'],
         'body' => ['required'],
     ]);
@@ -311,7 +319,7 @@ You may customize the error messages used by the form request by overriding the 
     {
         return [
             'title.required' => 'A title is required',
-            'body.required'  => 'A message is required',
+            'body.required' => 'A message is required',
         ];
     }
 
@@ -330,6 +338,25 @@ If you would like the `:attribute` portion of your validation message to be repl
         return [
             'email' => 'email address',
         ];
+    }
+
+<a name="prepare-input-for-validation"></a>
+### Prepare Input For Validation
+
+If you need to sanitize any data from the request before you apply your validation rules, you can use the `prepareForValidation` method:
+
+    use Illuminate\Support\Str;
+
+    /**
+     * Prepare the data for validation.
+     *
+     * @return void
+     */
+    protected function prepareForValidation()
+    {
+        $this->merge([
+            'slug' => Str::slug($this->slug),
+        ]);
     }
 
 <a name="manually-creating-validators"></a>
@@ -383,6 +410,13 @@ If you would like to create a validator instance manually but still take advanta
         'title' => 'required|unique:posts|max:255',
         'body' => 'required',
     ])->validate();
+
+You may use the `validateWithBag` method to store the error messages in a [named error bag](#named-error-bags) if validation fails:
+
+    Validator::make($request->all(), [
+        'title' => 'required|unique:posts|max:255',
+        'body' => 'required',
+    ])->validateWithBag('post');
 
 <a name="named-error-bags"></a>
 ### Named Error Bags
@@ -470,10 +504,10 @@ If needed, you may use custom error messages for validation instead of the defau
 In this example, the `:attribute` placeholder will be replaced by the actual name of the field under validation. You may also utilize other placeholders in validation messages. For example:
 
     $messages = [
-        'same'    => 'The :attribute and :other must match.',
-        'size'    => 'The :attribute must be exactly :size.',
+        'same' => 'The :attribute and :other must match.',
+        'size' => 'The :attribute must be exactly :size.',
         'between' => 'The :attribute value :input is not between :min - :max.',
-        'in'      => 'The :attribute must be one of the following types: :values',
+        'in' => 'The :attribute must be one of the following types: :values',
     ];
 
 #### Specifying A Custom Message For A Given Attribute
@@ -495,13 +529,21 @@ In most cases, you will probably specify your custom messages in a language file
         ],
     ],
 
-#### Specifying Custom Attributes In Language Files
+#### Specifying Custom Attribute Values
 
 If you would like the `:attribute` portion of your validation message to be replaced with a custom attribute name, you may specify the custom name in the `attributes` array of your `resources/lang/xx/validation.php` language file:
 
     'attributes' => [
         'email' => 'email address',
     ],
+
+You may also pass the custom attributes as the fourth argument to the `Validator::make` method:
+
+    $customAttributes = [
+        'email' => 'email address',
+    ];
+
+    $validator = Validator::make($input, $rules, $messages, $customAttributes);
 
 #### Specifying Custom Values In Language Files
 
@@ -567,8 +609,10 @@ Below is a list of all available validation rules and their function:
 [Digits Between](#rule-digits-between)
 [Dimensions (Image Files)](#rule-dimensions)
 [Distinct](#rule-distinct)
-[E-Mail](#rule-email)
+[Email](#rule-email)
 [Ends With](#rule-ends-with)
+[Exclude If](#rule-exclude-if)
+[Exclude Unless](#rule-exclude-unless)
 [Exists (Database)](#rule-exists)
 [File](#rule-file)
 [Filled](#rule-filled)
@@ -772,6 +816,16 @@ The `filter` validator, which uses PHP's `filter_var` function under the hood, s
 #### ends_with:_foo_,_bar_,...
 
 The field under validation must end with one of the given values.
+
+<a name="rule-exclude-if"></a>
+#### exclude_if:_anotherfield_,_value_
+
+The field under validation will be excluded from the request data returned by the `validate` and `validated` methods if the _anotherfield_ field is equal to _value_.
+
+<a name="rule-exclude-unless"></a>
+#### exclude_unless:_anotherfield_,_value_
+
+The field under validation will be excluded from the request data returned by the `validate` and `validated` methods unless _anotherfield_'s field is equal to _value_.
 
 <a name="rule-exists"></a>
 #### exists:_table_,_column_
@@ -1040,7 +1094,19 @@ The given _field_ must match the field under validation.
 <a name="rule-size"></a>
 #### size:_value_
 
-The field under validation must have a size matching the given _value_. For string data, _value_ corresponds to the number of characters. For numeric data, _value_ corresponds to a given integer value. For an array, _size_ corresponds to the `count` of the array. For files, _size_ corresponds to the file size in kilobytes.
+The field under validation must have a size matching the given _value_. For string data, _value_ corresponds to the number of characters. For numeric data, _value_ corresponds to a given integer value (the attribute must also have the `numeric` or `integer` rule). For an array, _size_ corresponds to the `count` of the array. For files, _size_ corresponds to the file size in kilobytes. Let's look at some examples:
+
+    // Validate that a string is exactly 12 characters long...
+    'title' => 'size:12';
+
+    // Validate that a provided integer equals 10...
+    'seats' => 'integer|size:10';
+
+    // Validate that an array has exactly 5 elements...
+    'tags' => 'array|size:5';
+
+    // Validate that an uploaded file is exactly 512 kilobytes...
+    'image' => 'file|size:512';
 
 <a name="rule-starts-with"></a>
 #### starts_with:_foo_,_bar_,...
@@ -1127,6 +1193,24 @@ The field under validation must be a valid RFC 4122 (version 1, 3, 4, or 5) univ
 
 <a name="conditionally-adding-rules"></a>
 ## Conditionally Adding Rules
+
+#### Skipping Validation When Fields Have Certain Values
+
+You may occasionally wish to not validate a given field if another field has a given value. You may accomplish this using the `exclude_if` validation rule. In this example, the `appointment_date` and `doctor_name` fields will not be validated if the `has_appointment` field has a value of `false`:
+
+    $v = Validator::make($data, [
+        'has_appointment' => 'required|bool',
+        'appointment_date' => 'exclude_if:has_appointment,false|required|date',
+        'doctor_name' => 'exclude_if:has_appointment,false|required|string',
+    ]);
+
+Alternatively, you may use the `exclude_unless` rule to not validate a given field unless another field has a given value:
+
+    $v = Validator::make($data, [
+        'has_appointment' => 'required|bool',
+        'appointment_date' => 'exclude_unless:has_appointment,true|required|date',
+        'doctor_name' => 'exclude_unless:has_appointment,true|required|string',
+    ]);
 
 #### Validating When Present
 

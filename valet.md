@@ -10,9 +10,11 @@
     - [Securing Sites With TLS](#securing-sites)
 - [Sharing Sites](#sharing-sites)
 - [Site Specific Environment Variables](#site-specific-environment-variables)
+- [Proxying Services](#proxying-services)
 - [Custom Valet Drivers](#custom-valet-drivers)
     - [Local Drivers](#local-drivers)
 - [Other Valet Commands](#other-valet-commands)
+- [Valet Directories & Files](#valet-directories-and-files)
 
 <a name="introduction"></a>
 ## Introduction
@@ -41,6 +43,7 @@ Out of the box, Valet support includes, but is not limited to:
 - [Contao](https://contao.org/en/)
 - [Craft](https://craftcms.com)
 - [Drupal](https://www.drupal.org/)
+- [ExpressionEngine](https://www.expressionengine.com/)
 - [Jigsaw](https://jigsaw.tighten.co)
 - [Joomla](https://www.joomla.org/)
 - [Katana](https://github.com/themsaid/katana)
@@ -74,7 +77,7 @@ Both Valet and Homestead are great choices for configuring your Laravel developm
 
 <div class="content-list" markdown="1">
 - Install or update [Homebrew](https://brew.sh/) to the latest version using `brew update`.
-- Install PHP 7.3 using Homebrew via `brew install php`.
+- Install PHP 7.4 using Homebrew via `brew install php`.
 - Install [Composer](https://getcomposer.org).
 - Install Valet with Composer via `composer global require laravel/valet`. Make sure the `~/.composer/vendor/bin` directory is in your system's "PATH".
 - Run the `valet install` command. This will configure and install Valet and DnsMasq, and register Valet's daemon to launch when your system starts.
@@ -101,6 +104,12 @@ Valet allows you to switch PHP versions using the `valet use php@version` comman
     valet use php@7.2
 
     valet use php
+
+> {note} Valet only serves one PHP version at a time, even if you have multiple PHP versions installed.
+
+#### Resetting Your Installation
+
+If you are having trouble getting your Valet installation to run properly, executing the `composer global update` command followed by `valet install` will reset your installation and can solve a variety of problems. In rare cases it may be necessary to "hard reset" Valet by executing `valet uninstall --force` followed by `valet install`.
 
 <a name="upgrading"></a>
 ### Upgrading
@@ -151,11 +160,31 @@ To "unsecure" a site and revert back to serving its traffic over plain HTTP, use
 <a name="sharing-sites"></a>
 ## Sharing Sites
 
-Valet even includes a command to share your local sites with the world. No additional software installation is required once Valet is installed.
+Valet even includes a command to share your local sites with the world, providing an easy way to test your site on mobile devices or share it with team members and clients. No additional software installation is required once Valet is installed.
 
-To share a site, navigate to the site's directory in your terminal and run the `valet share` command. A publicly accessible URL will be inserted into your clipboard and is ready to paste directly into your browser. That's it.
+### Sharing Sites Via Ngrok
+
+To share a site, navigate to the site's directory in your terminal and run the `valet share` command. A publicly accessible URL will be inserted into your clipboard and is ready to paste directly into your browser or share with your team.
 
 To stop sharing your site, hit `Control + C` to cancel the process.
+
+> {tip} You may pass additional parameters to the share command, such as `valet share --region=eu`. For more information, consult the [ngrok documentation](https://ngrok.com/docs).
+
+### Sharing Sites Via Expose
+
+If you have [Expose](https://beyondco.de/docs/expose) installed, you can share your site by navigating to the site's directory in your terminal and running the `expose` command. Consult the expose documentation for additional command-line parameters it supports. After sharing the site, Expose will display the sharable URL that you may use on your other devices or amongst team members.
+
+To stop sharing your site, hit `Control + C` to cancel the process.
+
+### Sharing Sites On Your Local Network
+
+Valet restricts incoming traffic to the internal `127.0.0.1` interface by default. This way your development machine isn't exposed to security risks from the Internet.
+
+If you wish to allow other devices on your local network to access the Valet sites on your machine via your machine's IP address (eg: `192.168.1.10/app-name.test`), you will need to manually edit the appropriate Nginx configuration file for that site to remove the restriction on the `listen` directive by removing the the `127.0.0.1:` prefix on the directive for ports 80 and 443.
+
+If you have not run `valet secure` on the project, you can open up network access for all non-HTTPS sites by editing the `/usr/local/etc/nginx/valet/valet.conf` file. However, if you're serving the project site over HTTPS (you have run `valet secure` for the site) then you should edit the `~/.config/valet/Nginx/app-name.test` file.
+
+Once you have updated your Nginx configuration, run the `valet restart` command to apply the configuration changes.
 
 <a name="site-specific-environment-variables"></a>
 ## Site Specific Environment Variables
@@ -164,9 +193,36 @@ Some applications using other frameworks may depend on server environment variab
 
     <?php
 
+    // Set $_SERVER['key'] to "value" for the foo.test site...
     return [
-        'WEBSITE_NAME' => 'My Blog',
+        'foo' => [
+            'key' => 'value',
+        ],
     ];
+
+    // Set $_SERVER['key'] to "value" for all sites...
+    return [
+        '*' => [
+            'key' => 'value',
+        ],
+    ];
+
+<a name="proxying-services"></a>
+## Proxying Services
+
+Sometimes you may wish to proxy a Valet domain to another service on your local machine. For example, you may occasionally need to run Valet while also running a separate site in Docker; however, Valet and Docker can't both bind to port 80 at the same time.
+
+To solve this, you may use the `proxy` command to generate a proxy. For example, you may proxy all traffic from `http://elasticsearch.test` to `http://127.0.0.1:9200`:
+
+    valet proxy elasticsearch http://127.0.0.1:9200
+
+You may remove a proxy using the `unproxy` command:
+
+    valet unproxy elasticsearch
+
+You may use the `proxies` command to list all site configuration that are proxied:
+
+    valet proxies
 
 <a name="custom-valet-drivers"></a>
 ## Custom Valet Drivers
@@ -284,4 +340,27 @@ Command  | Description
 `valet start` | Start the Valet daemon.
 `valet stop` | Stop the Valet daemon.
 `valet trust` | Add sudoers files for Brew and Valet to allow Valet commands to be run without prompting for passwords.
-`valet uninstall` | Uninstall the Valet daemon.
+`valet uninstall` | Uninstall Valet: Shows instructions for manual uninstall; or pass the `--force` parameter to aggressively delete all of Valet.
+
+<a name="valet-directories-and-files"></a>
+## Valet Directories & Files
+
+You may find the following directory and file information helpful while troubleshooting issues with your Valet environment:
+
+File / Path | Description
+--------- | -----------
+`~/.config/valet/` | Contains all of Valet's configuration. You may wish to maintain a backup of this folder.
+`~/.config/valet/dnsmasq.d/` | Contains DNSMasq's configuration.
+`~/.config/valet/Drivers/` | Contains custom Valet drivers.
+`~/.config/valet/Extensions/` | Contains custom Valet extensions / commands.
+`~/.config/valet/Nginx/` | Contains all Valet generated Nginx site configurations. These files are rebuilt when running the `install`, `secure`, and `tld` commands.
+`~/.config/valet/Sites/` | Contains all symbolic links for linked projects.
+`~/.config/valet/config.json` | Valet's master configuration file
+`~/.config/valet/valet.sock` | The PHP-FPM socket used by Valet's Nginx configuration. This will only exist if PHP is running properly.
+`~/.config/valet/Log/fpm-php.www.log` | User log for PHP errors.
+`~/.config/valet/Log/nginx-error.log` | User log for Nginx errors.
+`/usr/local/var/log/php-fpm.log` | System log for PHP-FPM errors.
+`/usr/local/var/log/nginx` | Contains Nginx access and error logs.
+`/usr/local/etc/php/X.X/conf.d` | Contains `*.ini` files for various PHP configuration settings.
+`/usr/local/etc/php/X.X/php-fpm.d/valet-fpm.conf` | PHP-FPM pool configuration file.
+`~/.composer/vendor/laravel/valet/cli/stubs/secure.valet.conf` | The default Nginx configuration used for building site certificates.
