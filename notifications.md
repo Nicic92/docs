@@ -70,7 +70,7 @@ Notifications may be sent in two ways: using the `notify` method of the `Notifia
 
     <?php
 
-    namespace App;
+    namespace App\Models;
 
     use Illuminate\Foundation\Auth\User as Authenticatable;
     use Illuminate\Notifications\Notifiable;
@@ -80,7 +80,7 @@ Notifications may be sent in two ways: using the `notify` method of the `Notifia
         use Notifiable;
     }
 
-This trait is utilized by the default `App\User` model and contains one method that may be used to send notifications: `notify`. The `notify` method expects to receive a notification instance:
+This trait is utilized by the default `App\Models\User` model and contains one method that may be used to send notifications: `notify`. The `notify` method expects to receive a notification instance:
 
     use App\Notifications\InvoicePaid;
 
@@ -149,7 +149,7 @@ If you would like to delay the delivery of the notification, you may chain the `
 
 #### Customizing Notification Channel Queues
 
-If you would to specify a specific queue that should be used for each notification channel supported by the notification, you may define a `viaQueues` method on your notification. This method should return an array of channel name / queue name pairs:
+If you would like to specify a specific queue that should be used for each notification channel supported by the notification, you may define a `viaQueues` method on your notification. This method should return an array of channel name / queue name pairs:
 
     /**
      * Determine which queues should be used for each notification channel.
@@ -224,7 +224,23 @@ Instead of defining the "lines" of text in the notification class, you may use t
         );
     }
 
-In addition, you may return a [mailable object](/docs/{{version}}/mail) from the `toMail` method:
+You may specify a plain-text view for the mail message by passing the view name as the second element of an array that is given to the `view` method of the `MailMessage`:
+
+    /**
+     * Get the mail representation of the notification.
+     *
+     * @param  mixed  $notifiable
+     * @return \Illuminate\Notifications\Messages\MailMessage
+     */
+    public function toMail($notifiable)
+    {
+        return (new MailMessage)->view(
+            ['emails.name.html', 'emails.name.plain'],
+            ['invoice' => $this->invoice]
+        );
+    }
+
+In addition, you may return a full [mailable object](/docs/{{version}}/mail) from the `toMail` method:
 
     use App\Mail\InvoicePaid as Mailable;
 
@@ -283,7 +299,7 @@ When sending notifications via the `mail` channel, the notification system will 
 
     <?php
 
-    namespace App;
+    namespace App\Models;
 
     use Illuminate\Foundation\Auth\User as Authenticatable;
     use Illuminate\Notifications\Notifiable;
@@ -508,9 +524,9 @@ The `toArray` method is also used by the `broadcast` channel to determine which 
 <a name="accessing-the-notifications"></a>
 ### Accessing The Notifications
 
-Once notifications are stored in the database, you need a convenient way to access them from your notifiable entities. The `Illuminate\Notifications\Notifiable` trait, which is included on Laravel's default `App\User` model, includes a `notifications` Eloquent relationship that returns the notifications for the entity. To fetch notifications, you may access this method like any other Eloquent relationship. By default, notifications will be sorted by the `created_at` timestamp:
+Once notifications are stored in the database, you need a convenient way to access them from your notifiable entities. The `Illuminate\Notifications\Notifiable` trait, which is included on Laravel's default `App\Models\User` model, includes a `notifications` Eloquent relationship that returns the notifications for the entity. To fetch notifications, you may access this method like any other Eloquent relationship. By default, notifications will be sorted by the `created_at` timestamp:
 
-    $user = App\User::find(1);
+    $user = App\Models\User::find(1);
 
     foreach ($user->notifications as $notification) {
         echo $notification->type;
@@ -518,7 +534,7 @@ Once notifications are stored in the database, you need a convenient way to acce
 
 If you want to retrieve only the "unread" notifications, you may use the `unreadNotifications` relationship. Again, these notifications will be sorted by the `created_at` timestamp:
 
-    $user = App\User::find(1);
+    $user = App\Models\User::find(1);
 
     foreach ($user->unreadNotifications as $notification) {
         echo $notification->type;
@@ -531,7 +547,7 @@ If you want to retrieve only the "unread" notifications, you may use the `unread
 
 Typically, you will want to mark a notification as "read" when a user views it. The `Illuminate\Notifications\Notifiable` trait provides a `markAsRead` method, which updates the `read_at` column on the notification's database record:
 
-    $user = App\User::find(1);
+    $user = App\Models\User::find(1);
 
     foreach ($user->unreadNotifications as $notification) {
         $notification->markAsRead();
@@ -543,7 +559,7 @@ However, instead of looping through each notification, you may use the `markAsRe
 
 You may also use a mass-update query to mark all of the notifications as read without retrieving them from the database:
 
-    $user = App\User::find(1);
+    $user = App\Models\User::find(1);
 
     $user->unreadNotifications()->update(['read_at' => now()]);
 
@@ -607,7 +623,7 @@ In addition to the data you specify, all broadcast notifications also have a `ty
 <a name="listening-for-notifications"></a>
 ### Listening For Notifications
 
-Notifications will broadcast on a private channel formatted using a `{notifiable}.{id}` convention. So, if you are sending a notification to a `App\User` instance with an ID of `1`, the notification will be broadcast on the `App.User.1` private channel. When using [Laravel Echo](/docs/{{version}}/broadcasting), you may easily listen for notifications on a channel using the `notification` helper method:
+Notifications will broadcast on a private channel formatted using a `{notifiable}.{id}` convention. So, if you are sending a notification to a `App\Models\User` instance with an ID of `1`, the notification will be broadcast on the `App.User.1` private channel. When using [Laravel Echo](/docs/{{version}}/broadcasting), you may easily listen for notifications on a channel using the `notification` helper method:
 
     Echo.private('App.User.' + userId)
         .notification((notification) => {
@@ -620,7 +636,7 @@ If you would like to customize which channels a notifiable entity receives its b
 
     <?php
 
-    namespace App;
+    namespace App\Models;
 
     use Illuminate\Broadcasting\PrivateChannel;
     use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -743,7 +759,7 @@ To route Nexmo notifications to the proper phone number, define a `routeNotifica
 
     <?php
 
-    namespace App;
+    namespace App\Models;
 
     use Illuminate\Foundation\Auth\User as Authenticatable;
     use Illuminate\Notifications\Notifiable;
@@ -920,7 +936,7 @@ To route Slack notifications to the proper location, define a `routeNotification
 
     <?php
 
-    namespace App;
+    namespace App\Models;
 
     use Illuminate\Foundation\Auth\User as Authenticatable;
     use Illuminate\Notifications\Notifiable;

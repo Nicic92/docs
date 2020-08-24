@@ -17,11 +17,11 @@ Many web applications require users to verify their email addresses before using
 <a name="model-preparation"></a>
 ## Model Preparation
 
-To get started, verify that your `App\User` model implements the `Illuminate\Contracts\Auth\MustVerifyEmail` contract:
+To get started, verify that your `App\Models\User` model implements the `Illuminate\Contracts\Auth\MustVerifyEmail` contract:
 
     <?php
 
-    namespace App;
+    namespace App\Models;
 
     use Illuminate\Contracts\Auth\MustVerifyEmail;
     use Illuminate\Foundation\Auth\User as Authenticatable;
