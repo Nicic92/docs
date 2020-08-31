@@ -10,7 +10,6 @@
 - [Named Routes](#named-routes)
 - [Route Groups](#route-groups)
     - [Middleware](#route-group-middleware)
-    - [Namespaces](#route-group-namespaces)
     - [Subdomain Routing](#route-group-subdomain-routing)
     - [Route Prefixes](#route-group-prefixes)
     - [Route Name Prefixes](#route-group-name-prefixes)
@@ -19,6 +18,8 @@
     - [Explicit Binding](#explicit-binding)
 - [Fallback Routes](#fallback-routes)
 - [Rate Limiting](#rate-limiting)
+    - [Defining Rate Limiters](#defining-rate-limiters)
+    - [Attaching Rate Limiters To Routes](#attaching-rate-limiters-to-routes)
 - [Form Method Spoofing](#form-method-spoofing)
 - [Accessing The Current Route](#accessing-the-current-route)
 - [Cross-Origin Resource Sharing (CORS)](#cors)
@@ -38,7 +39,9 @@ All Laravel routes are defined in your route files, which are located in the `ro
 
 For most applications, you will begin by defining routes in your `routes/web.php` file. The routes defined in `routes/web.php` may be accessed by entering the defined route's URL in your browser. For example, you may access the following route by navigating to `http://your-app.test/user` in your browser:
 
-    Route::get('/user', 'UserController@index');
+    use App\Http\Controllers\UserController;
+
+    Route::get('/user', [UserController::class, 'index']);
 
 Routes defined in the `routes/api.php` file are nested within a route group by the `RouteServiceProvider`. Within this group, the `/api` URI prefix is automatically applied so you do not need to manually apply it to every route in the file. You may modify the prefix and other route group options by modifying your `RouteServiceProvider` class.
 
@@ -189,7 +192,7 @@ Named routes allow the convenient generation of URLs or redirects for specific r
 
 You may also specify route names for controller actions:
 
-    Route::get('user/profile', 'UserProfileController@show')->name('profile');
+    Route::get('user/profile', [UserProfileController::class, 'show'])->name('profile');
 
 > {note} Route names should always be unique.
 
@@ -265,17 +268,6 @@ To assign middleware to all routes within a group, you may use the `middleware` 
         });
     });
 
-<a name="route-group-namespaces"></a>
-### Namespaces
-
-Another common use-case for route groups is assigning the same PHP namespace to a group of controllers using the `namespace` method:
-
-    Route::namespace('Admin')->group(function () {
-        // Controllers Within The "App\Http\Controllers\Admin" Namespace
-    });
-
-Remember, by default, the `RouteServiceProvider` includes your route files within a namespace group, allowing you to register controller routes without specifying the full `App\Http\Controllers` namespace prefix. So, you only need to specify the portion of the namespace that comes after the base `App\Http\Controllers` namespace.
-
 <a name="route-group-subdomain-routing"></a>
 ### Subdomain Routing
 
@@ -335,6 +327,7 @@ Sometimes you may wish to resolve Eloquent models using a column other than `id`
         return $post;
     });
 
+<a name="implicit-model-binding-scoping"></a>
 #### Custom Keys & Scoping
 
 Sometimes, when implicitly binding multiple Eloquent models in a single route definition, you may wish to scope the second Eloquent model such that it must be a child of the first Eloquent model. For example, consider this situation that retrieves a blog post by slug for a specific user:
@@ -365,11 +358,18 @@ If you would like model binding to use a default database column other than `id`
 <a name="explicit-binding"></a>
 ### Explicit Binding
 
-To register an explicit binding, use the router's `model` method to specify the class for a given parameter. You should define your explicit model bindings in the `boot` method of the `RouteServiceProvider` class:
+To register an explicit binding, use the router's `model` method to specify the class for a given parameter. You should define your explicit model bindings at the beginning of the `boot` method of your `RouteServiceProvider` class:
 
+    /**
+     * Define your route model bindings, pattern filters, etc.
+     *
+     * @return void
+     */
     public function boot()
     {
         Route::model('user', App\Models\User::class);
+
+        // ...
     }
 
 Next, define a route that contains a `{user}` parameter:
@@ -387,7 +387,7 @@ If a matching model instance is not found in the database, a 404 HTTP response w
 If you wish to use your own resolution logic, you may use the `Route::bind` method. The `Closure` you pass to the `bind` method will receive the value of the URI segment and should return the instance of the class that should be injected into the route:
 
     /**
-     * Bootstrap any application services.
+     * Define your route model bindings, pattern filters, etc.
      *
      * @return void
      */
@@ -396,6 +396,8 @@ If you wish to use your own resolution logic, you may use the `Route::bind` meth
         Route::bind('user', function ($value) {
             return App\Models\User::where('name', $value)->firstOrFail();
         });
+
+        // ...
     }
 
 Alternatively, you may override the `resolveRouteBinding` method on your Eloquent model. This method will receive the value of the URI segment and should return the instance of the class that should be injected into the route:
@@ -426,55 +428,69 @@ Using the `Route::fallback` method, you may define a route that will be executed
 <a name="rate-limiting"></a>
 ## Rate Limiting
 
-Laravel includes a [middleware](/docs/{{version}}/middleware) to rate limit access to routes within your application. To get started, assign the `throttle` middleware to a route or a group of routes. The `throttle` middleware accepts two parameters that determine the maximum number of requests that can be made in a given number of minutes. For example, let's specify that an authenticated user may access the following group of routes 60 times per minute:
+<a name="defining-rate-limiters"></a>
+### Defining Rate Limiters
 
-    Route::middleware('auth:api', 'throttle:60,1')->group(function () {
-        Route::get('/user', function () {
+Laravel includes powerful and customizable rate limiting services that you may utilize to restrict the amount of traffic for a given route or group of routes. To get started, you should define rate limiter configurations that meet your application's needs. Typically, this may be done in your application's `RouteServiceProvider`.
+
+Rate limiters are defined using the `RateLimiter` facade's `for` method. The `for` method accepts a rate limiter name and a Closure that returns the limit configuration that should apply to routes that are assigned this rate limiter:
+
+    use Illuminate\Cache\RateLimiting\Limit;
+    use Illuminate\Support\Facades\RateLimiter;
+
+    RateLimiter::for('global', function (Request $request) {
+        return Limit::perMinute(1000);
+    });
+
+If the incoming request exceeds the specified rate limit, a response with a 429 HTTP status code will be automatically returned by Laravel. If you would like to define your own response that should be returned by a rate limit, you may use the `response` method:
+
+    RateLimiter::for('global', function (Request $request) {
+        return Limit::perMinute(1000)->response(function () {
+            return response('Custom response...', 429);
+        });
+    });
+
+Since rate limiter callbacks receive the incoming HTTP request instance, you may build the appropriate rate limit dynamically based on the incoming request or authenticated user:
+
+    RateLimiter::for('uploads', function (Request $request) {
+        return $request->user()->vipCustomer()
+                    ? Limit::none()
+                    : Limit::perMinute(100);
+    });
+
+#### Segmenting Rate Limits
+
+Sometimes you may wish to segment rate limits by some arbitrary value. For example, you may wish to allow users to access a given route 100 times per minute per IP address. To accomplish this, you may use the `by` method when building your rate limit:
+
+    RateLimiter::for('uploads', function (Request $request) {
+        return $request->user()->vipCustomer()
+                    ? Limit::none()
+                    : Limit::perMinute(100)->by($request->ip());
+    });
+
+#### Multiple Rate Limits
+
+If needed, you may return an array of rate limits for a given rate limiter configuration. Each rate limit will be evaluated for the route based on the order they are placed within the array:
+
+    RateLimiter::for('login', function (Request $request) {
+        return [
+            Limit::perMinute(500),
+            Limit::perMinute(3)->by($request->input('email')),
+        ];
+    });
+
+<a name="attaching-rate-limiters-to-routes"></a>
+### Attaching Rate Limiters To Routes
+
+Rate limiters may be attached to routes or route groups using the `throttle` [middleware](/docs/{{version}}/middleware). The throttle middleware accepts the name of the rate limiter you wish to assign to the route:
+
+    Route::middleware(['throttle:uploads'])->group(function () {
+        Route::post('/audio', function () {
             //
         });
-    });
 
-#### Dynamic Rate Limiting
-
-You may specify a dynamic request maximum based on an attribute of the authenticated `User` model. For example, if your `User` model contains a `rate_limit` attribute, you may pass the name of the attribute to the `throttle` middleware so that it is used to calculate the maximum request count:
-
-    Route::middleware('auth:api', 'throttle:rate_limit,1')->group(function () {
-        Route::get('/user', function () {
+        Route::post('/video', function () {
             //
-        });
-    });
-
-#### Distinct Guest & Authenticated User Rate Limits
-
-You may specify different rate limits for guest and authenticated users. For example, you may specify a maximum of `10` requests per minute for guests `60` for authenticated users:
-
-    Route::middleware('throttle:10|60,1')->group(function () {
-        //
-    });
-
-You may also combine this functionality with dynamic rate limits. For example, if your `User` model contains a `rate_limit` attribute, you may pass the name of the attribute to the `throttle` middleware so that it is used to calculate the maximum request count for authenticated users:
-
-    Route::middleware('auth:api', 'throttle:10|rate_limit,1')->group(function () {
-        Route::get('/user', function () {
-            //
-        });
-    });
-
-#### Rate Limit Segments
-
-Typically, you will probably specify one rate limit for your entire API. However, your application may require different rate limits for different segments of your API. If this is the case, you will need to pass a segment name as the third argument to the `throttle` middleware:
-
-    Route::middleware('auth:api')->group(function () {
-        Route::middleware('throttle:60,1,default')->group(function () {
-            Route::get('/servers', function () {
-                //
-            });
-        });
-
-        Route::middleware('throttle:60,1,deletes')->group(function () {
-            Route::delete('/servers/{id}', function () {
-                //
-            });
         });
     });
 

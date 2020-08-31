@@ -15,6 +15,13 @@
     - [Specifying Max Job Attempts / Timeout Values](#max-job-attempts-and-timeout)
     - [Rate Limiting](#rate-limiting)
     - [Error Handling](#error-handling)
+- [Job Batching](#job-batching)
+    - [Defining Batchable Jobs](#defining-batchable-jobs)
+    - [Dispatching Batches](#dispatching-batches)
+    - [Adding Jobs To Batches](#adding-jobs-to-batches)
+    - [Inspecting Batches](#inspecting-batches)
+    - [Cancelling Batches](#cancelling-batches)
+    - [Batch Failures](#batch-failures)
 - [Queueing Closures](#queueing-closures)
 - [Running The Queue Worker](#running-the-queue-worker)
     - [Queue Priorities](#queue-priorities)
@@ -385,18 +392,21 @@ If you would like to dispatch a job immediately (synchronously), you may use the
 <a name="job-chaining"></a>
 ### Job Chaining
 
-Job chaining allows you to specify a list of queued jobs that should be run in sequence after the primary job has executed successfully. If one job in the sequence fails, the rest of the jobs will not be run. To execute a queued job chain, you may use the `withChain` method on any of your dispatchable jobs:
+Job chaining allows you to specify a list of queued jobs that should be run in sequence after the primary job has executed successfully. If one job in the sequence fails, the rest of the jobs will not be run. To execute a queued job chain, you may use the `chain` method provided by the `Bus` facade:
 
-    ProcessPodcast::withChain([
+    use Illuminate\Support\Facades\Bus;
+
+    Bus::chain([
+        new ProcessPodcast,
         new OptimizePodcast,
-        new ReleasePodcast
+        new ReleasePodcast,
     ])->dispatch();
 
 In addition to chaining job class instances, you may also chain Closures:
 
-    ProcessPodcast::withChain([
+    Bus::chain([
+        new ProcessPodcast,
         new OptimizePodcast,
-        new ReleasePodcast,
         function () {
             Podcast::update(...);
         },
@@ -408,10 +418,26 @@ In addition to chaining job class instances, you may also chain Closures:
 
 If you would like to specify the default connection and queue that should be used for the chained jobs, you may use the `allOnConnection` and `allOnQueue` methods. These methods specify the queue connection and queue name that should be used unless the queued job is explicitly assigned a different connection / queue:
 
-    ProcessPodcast::withChain([
+    Bus::chain([
+        new ProcessPodcast,
         new OptimizePodcast,
-        new ReleasePodcast
+        new ReleasePodcast,
     ])->dispatch()->allOnConnection('redis')->allOnQueue('podcasts');
+
+#### Chain Failures
+
+When chaining jobs, you may use the `chain` method to specify a Closure that should be invoked if a job within the chain fails. The given callback will receive the exception instance that caused the job failure:
+
+    use Illuminate\Support\Facades\Bus;
+    use Throwable;
+
+    Bus::chain([
+        new ProcessPodcast,
+        new OptimizePodcast,
+        new ReleasePodcast,
+    ])->catch(function (Throwable $e) {
+        // A job within the chain has failed...
+    })->dispatch();
 
 <a name="customizing-the-queue-and-connection"></a>
 ### Customizing The Queue & Connection
@@ -564,7 +590,7 @@ In this example, the job is released for ten seconds if the application is unabl
 
 #### Timeout
 
-> {note} The `timeout` feature is optimized for PHP 7.1+ and the `pcntl` PHP extension.
+> {note} The `pcntl` PHP extension must be installed in order to specify job timeouts.
 
 Likewise, the maximum number of seconds that jobs can run may be specified using the `--timeout` switch on the Artisan command line:
 
@@ -624,10 +650,219 @@ Alternatively, you may specify the maximum number of workers that may simultaneo
 
 If an exception is thrown while the job is being processed, the job will automatically be released back onto the queue so it may be attempted again. The job will continue to be released until it has been attempted the maximum number of times allowed by your application. The maximum number of attempts is defined by the `--tries` switch used on the `queue:work` Artisan command. Alternatively, the maximum number of attempts may be defined on the job class itself. More information on running the queue worker [can be found below](#running-the-queue-worker).
 
+<a name="job-batching"></a>
+## Job Batching
+
+Laravel's job batching feature allows you to easily execute a batch of jobs and then perform some action when the batch of jobs has completed executing. Before getting started, you should create a database migration to build a table that will contain your job batch meta information. This migration may be generated using the `queue:batches-table` Artisan command:
+
+    php artisan queue:batches-table
+
+    php artisan migrate
+
+<a name="defining-batchable-jobs"></a>
+### Defining Batchable Jobs
+
+To build a batchable job, you should [create a queueable job](#creating-jobs) as normal; however, you should add the `Illuminate\Bus\Batchable` trait to the job class. This trait provides access to a `batch` method which may be used to retrieve the current batch that the job is executing in:
+
+    <?php
+
+    namespace App\Jobs;
+
+    use App\Models\Podcast;
+    use App\Services\AudioProcessor;
+    use Illuminate\Bus\Batchable;
+    use Illuminate\Bus\Queueable;
+    use Illuminate\Contracts\Queue\ShouldQueue;
+    use Illuminate\Foundation\Bus\Dispatchable;
+    use Illuminate\Queue\InteractsWithQueue;
+    use Illuminate\Queue\SerializesModels;
+
+    class ProcessPodcast implements ShouldQueue
+    {
+        use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+        /**
+         * Execute the job.
+         *
+         * @return void
+         */
+        public function handle()
+        {
+            if ($this->batch()->cancelled()) {
+                // Detected cancelled batch...
+
+                return;
+            }
+
+            // Batched job executing...
+        }
+    }
+
+<a name="dispatching-batches"></a>
+### Dispatching Batches
+
+To dispatch a batch of jobs, you should use `batch` method of the `Bus` facade. Of course, batching is primarily useful when combined with completion callbacks. So, you may use the `then`, `catch`, and `finally` methods to define completion callbacks for the batch. Each of these callbacks will receive an `Illuminate\Bus\Batch` instance when they are invoked:
+
+    use App\Jobs\ProcessPodcast;
+    use App\Podcast;
+    use Illuminate\Bus\Batch;
+    use Illuminate\Support\Facades\Batch;
+    use Throwable;
+
+    $batch = Bus::batch([
+        new ProcessPodcast(Podcast::find(1)),
+        new ProcessPodcast(Podcast::find(2)),
+        new ProcessPodcast(Podcast::find(3)),
+        new ProcessPodcast(Podcast::find(4)),
+        new ProcessPodcast(Podcast::find(5)),
+    ])->then(function (Batch $batch) {
+        // All jobs completed successfully...
+    })->catch(function (Batch $batch, Throwable $e) {
+        // First batch job failure detected...
+    })->finally(function (Batch $batch) {
+        // The batch has finished executing...
+    })->dispatch();
+
+    return $batch->id;
+
+#### Naming Batches
+
+Some tools such as Laravel Horizon and Laravel Telescope may provide more user-friendly debug information for batches if batches are named. To assign an arbitrary name to a batch, you may call the `name` method while defining the batch:
+
+    $batch = Bus::batch([
+        // ...
+    ])->then(function (Batch $batch) {
+        // All jobs completed successfully...
+    })->name('Process Podcasts')->dispatch();
+
+<a name="adding-jobs-to-batches"></a>
+### Adding Jobs To Batches
+
+Sometimes it may be useful to add additional jobs to a batch from within a batched job. This pattern can be useful when you need to batch thousands of jobs which may take too long to dispatch during a web request. So, instead, you may wish to dispatch an initial batch of "loader" jobs that hydrate the batch with more jobs:
+
+    $batch = Bus::batch([
+        new LoadImportBatch,
+        new LoadImportBatch,
+        new LoadImportBatch,
+    ])->then(function (Batch $batch) {
+        // All jobs completed successfully...
+    })->name('Import Contacts')->dispatch();
+
+In this example, we will use the `LoadImportBatch` job to hydrate the batch with additional jobs. To accomplish this, we may use the `add` method on the batch instance that can be accessed within the job:
+
+    use App\Jobs\ImportContacts;
+    use Illuminate\Support\Collection;
+
+    /**
+     * Execute the job.
+     *
+     * @return void
+     */
+    public function handle()
+    {
+        if ($this->batch()->cancelled()) {
+            return;
+        }
+
+        $this->batch()->add(Collection::times(1000, function () {
+            return new ImportContacts;
+        }));
+    }
+
+> {note} You may only add jobs to a batch from within a job that belongs to the same batch.
+
+<a name="inspecting-batches"></a>
+### Inspecting Batches
+
+The `Illuminate\Bus\Batch` method that is provided to batch completion callbacks has a variety of properties and methods to assist you in interacting with and inspecting a given batch of jobs.
+
+    // The UUID of the batch...
+    $batch->id;
+
+    // The name of the batch (if applicable)...
+    $batch->name;
+
+    // The number of jobs assigned to the batch...
+    $batch->totalJobs;
+
+    // The number of jobs that have not been processed by the queue...
+    $batch->pendingJobs;
+
+    // The number of jobs that have failed...
+    $batch->failedJobs;
+
+    // The number of jobs that have been processed thus far...
+    $batch->processedJobs();
+
+    // The completion percentage of the batch (0-100)...
+    $batch->progress();
+
+    // Indicates if the batch has finished executing...
+    $batch->finished();
+
+    // Cancel the execution of the batch...
+    $batch->cancel();
+
+    // Indicates if the batch has been cancelled...
+    $batch->cancelled();
+
+#### Returning Batches From Routes
+
+All `Illuminate\Bus\Batch` instances are JSON serializable, meaning you can return them directly from one of your application's routes to retrieve a JSON payload containing information about the batch, including its completion progress. To retrieve a batch by its ID, you may use the `Bus` facade's `findBatch` method:
+
+    use Illuminate\Support\Facades\Bus;
+    use Illuminate\Support\Facades\Route;
+
+    Route::get('/batch/{batchId}', function (string $batchId) {
+        return Bus::findBatch($batchId);
+    });
+
+<a name="cancelling-batches"></a>
+### Cancelling Batches
+
+Sometimes you may need to cancel a given batch's execution. This can be accomplished by calling the `cancel` method on the `Illuminate\Bus\Batch` instance:
+
+    /**
+     * Execute the job.
+     *
+     * @return void
+     */
+    public function handle()
+    {
+        if ($this->user->exceedsImportLimit()) {
+            return $this->batch()->cancel();
+        }
+
+        if ($this->batch()->cancelled()) {
+            return;
+        }
+    }
+
+<a name="batch-failures"></a>
+### Batch Failures
+
+When a batch job fails, the `catch` callback (if assigned) will be invoked. This callback is only invoked for the job that fails within the batch.
+
+#### Allowing Failures
+
+When a job within a batch fails, Laravel will automatically mark the batch as "cancelled". If you wish, you may disable this behavior so that a job failure does not automatically mark the batch as cancelled. This may be accomplished by calling the `allowFailures` method while dispatching the batch:
+
+    $batch = Bus::batch([
+        // ...
+    ])->then(function (Batch $batch) {
+        // All jobs completed successfully...
+    })->allowFailures()->dispatch();
+
+#### Retrying Failed Batch Jobs
+
+For convenience, Laravel provides a `queue:retry-batch` Artisan command that allows you to easily retry all of the failed jobs for a given batch. The `queue:retry-batch` command accepts the UUID of the batch whose failed jobs should be retried:
+
+    php artisan queue:retry-batch 32dbc76c-4f82-4749-b610-a639fe0099b5
+
 <a name="queueing-closures"></a>
 ## Queueing Closures
 
-Instead of dispatching a job class to the queue, you may also dispatch a Closure. This is great for quick, simple tasks that need to be executed outside of the current request cycle:
+Instead of dispatching a job class to the queue, you may also dispatch a Closure. This is great for quick, simple tasks that need to be executed outside of the current request cycle. When dispatching Closures to the queue, the Closure's code contents is cryptographically signed so it can not be modified in transit:
 
     $podcast = App\Podcast::find(1);
 
@@ -635,7 +870,15 @@ Instead of dispatching a job class to the queue, you may also dispatch a Closure
         $podcast->publish();
     });
 
-When dispatching Closures to the queue, the Closure's code contents is cryptographically signed so it can not be modified in transit.
+Using the `catch` method, you may provide a Closure that should be executed if the queued Closure fails to complete successfully after exhausting all of your queue's configured retry attempts:
+
+    use Throwable;
+
+    dispatch(function () use ($podcast) {
+        $podcast->publish();
+    })->catch(function (Throwable $e) {
+        // This job has failed...
+    });
 
 <a name="running-the-queue-worker"></a>
 ## Running The Queue Worker
@@ -662,17 +905,28 @@ You may customize your queue worker even further by only processing particular q
 
     php artisan queue:work redis --queue=emails
 
-#### Processing A Single Job
+#### Processing A Specified Number Of Jobs
 
 The `--once` option may be used to instruct the worker to only process a single job from the queue:
 
     php artisan queue:work --once
+
+The `--max-jobs` option may be used to instruct the worker to process the given number of jobs and then exit. This option may be useful when combined with [Supervisor](supervisor-configuration) so that your workers are automatically restarted after processing a given number of jobs:
+
+    php artisan queue:work --max-jobs=1000
 
 #### Processing All Queued Jobs & Then Exiting
 
 The `--stop-when-empty` option may be used to instruct the worker to process all jobs and then exit gracefully. This option can be useful when working Laravel queues within a Docker container if you wish to shutdown the container after the queue is empty:
 
     php artisan queue:work --stop-when-empty
+
+#### Processing Jobs For A Given Number Of Seconds
+
+The `--max-time` option may be used to instruct the worker to process jobs for the given number of seconds and then exit. This option may be useful when combined with [Supervisor](supervisor-configuration) so that your workers are automatically restarted after processing jobs for a given amount of time:
+
+    // Process jobs for one hour and then exit...
+    php artisan queue:work --max-time=3600
 
 #### Resource Considerations
 
@@ -780,29 +1034,41 @@ Then, when running your [queue worker](#running-the-queue-worker), you can speci
 
     php artisan queue:work redis --tries=3
 
-In addition, you may specify how many seconds Laravel should wait before retrying a job that has failed using the `--delay` option. By default, a job is retried immediately:
+In addition, you may specify how many seconds Laravel should wait before retrying a job that has failed using the `--backoff` option. By default, a job is retried immediately:
 
-    php artisan queue:work redis --tries=3 --delay=3
+    php artisan queue:work redis --tries=3 --backoff=3
 
-If you would like to configure the failed job retry delay on a per-job basis, you may do so by defining a `retryAfter` property on your queued job class:
+If you would like to configure the failed job retry delay on a per-job basis, you may do so by defining a `backoff` property on your queued job class:
 
     /**
      * The number of seconds to wait before retrying the job.
      *
      * @var int
      */
-    public $retryAfter = 3;
+    public $backoff = 3;
 
-If you require more complex logic for determining the retry delay, you may define a `retryAfter` method on your queued job class:
+If you require more complex logic for determining the retry delay, you may define a `backoff` method on your queued job class:
 
     /**
     * Calculate the number of seconds to wait before retrying the job.
     *
     * @return int
     */
-    public function retryAfter()
+    public function backoff()
     {
         return 3;
+    }
+
+You may easily configure "exponential" backoffs by returning an array of backoff values from the `backoff` method. In this example, the retry delay will be 1 seconds for the first retry, 5 seconds for the second retry, and 10 seconds for the third retry:
+
+    /**
+    * Calculate the number of seconds to wait before retrying the job.
+    *
+    * @return array
+    */
+    public function backoff()
+    {
+        return [1, 5, 10];
     }
 
 <a name="cleaning-up-after-failed-jobs"></a>
@@ -816,11 +1082,11 @@ You may define a `failed` method directly on your job class, allowing you to per
 
     use App\Models\Podcast;
     use App\Services\AudioProcessor;
-    use Exception;
     use Illuminate\Bus\Queueable;
     use Illuminate\Contracts\Queue\ShouldQueue;
     use Illuminate\Queue\InteractsWithQueue;
     use Illuminate\Queue\SerializesModels;
+    use Throwable;
 
     class ProcessPodcast implements ShouldQueue
     {

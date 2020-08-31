@@ -50,6 +50,8 @@ Of course, manually creating the files for each event and listener is cumbersome
 
 Typically, events should be registered via the `EventServiceProvider` `$listen` array; however, you may also register Closure based events manually in the `boot` method of your `EventServiceProvider`:
 
+    use App\Events\PodcastProcessed;
+
     /**
      * Register any other events for your application.
      *
@@ -57,10 +59,50 @@ Typically, events should be registered via the `EventServiceProvider` `$listen` 
      */
     public function boot()
     {
-        Event::listen('event.name', function ($foo, $bar) {
+        Event::listen(function (PodcastProcessed $event) {
             //
         });
     }
+
+<a name="queuable-anonymous-event-listeners"></a>
+#### Queueable Anonymous Event Listeners
+
+When registering evnet listeners manually, you may wrap the listener Closure within the `Illuminate\Events\queueable` function to instruct Laravel to execute the listener using the [queue](/docs/{{version}}/queues):
+
+    use App\Events\PodcastProcessed;
+    use function Illuminate\Events\queueable;
+    use Illuminate\Support\Facades\Event;
+
+    /**
+     * Register any other events for your application.
+     *
+     * @return void
+     */
+    public function boot()
+    {
+        Event::listen(queueable(function (PodcastProcessed $event) {
+            //
+        }));
+    }
+
+Like queued jobs, you may use the `onConnection`, `onQueue`, and `delay` methods to customize the execution of the queued listener:
+
+    Event::listen(queueable(function (PodcastProcessed $event) {
+        //
+    })->onConnection('redis')->onQueue('podcasts')->delay(now()->addSeconds(10)));
+
+If you would like to handle anonymous queued listener failures, you may provide a Closure to the `catch` method while defining the `queueable` listener:
+
+    use App\Events\PodcastProcessed;
+    use function Illuminate\Events\queueable;
+    use Illuminate\Support\Facades\Event;
+    use Throwable;
+
+    Event::listen(queueable(function (PodcastProcessed $event) {
+        //
+    })->catch(function (PodcastProcessed $event, Throwable $e) {
+        // The queued listener failed...
+    }));
 
 #### Wildcard Event Listeners
 
@@ -439,19 +481,38 @@ Event subscribers are classes that may subscribe to multiple events from within 
          * Register the listeners for the subscriber.
          *
          * @param  \Illuminate\Events\Dispatcher  $events
+         * @return void
          */
         public function subscribe($events)
         {
             $events->listen(
                 'Illuminate\Auth\Events\Login',
-                'App\Listeners\UserEventSubscriber@handleUserLogin'
+                [UserEventSubscriber::class, 'handleUserLogin']
             );
 
             $events->listen(
                 'Illuminate\Auth\Events\Logout',
-                'App\Listeners\UserEventSubscriber@handleUserLogout'
+                [UserEventSubscriber::class, 'handleUserLogout']
             );
         }
+    }
+
+Alternatively, your subscriber's `subscribe` method may return an array of event to handler mappings. In this case, the event listener mappings will be registered for you automatically:
+
+    use Illuminate\Auth\Events\Login;
+    use Illuminate\Auth\Events\Logout;
+
+    /**
+     * Register the listeners for the subscriber.
+     *
+     * @return array
+     */
+    public function subscribe()
+    {
+        return [
+            Login::class => [UserEventSubscriber::class, 'handleUserLogin'],
+            Logout::class => [UserEventSubscriber::class, 'handleUserLogout'],
+        ];
     }
 
 <a name="registering-event-subscribers"></a>

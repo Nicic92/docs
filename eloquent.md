@@ -38,7 +38,7 @@ Before getting started, be sure to configure a database connection in `config/da
 <a name="defining-models"></a>
 ## Defining Models
 
-To get started, let's create an Eloquent model. Models typically live in the `app` directory, but you are free to place them anywhere that can be auto-loaded according to your `composer.json` file. All Eloquent models extend `Illuminate\Database\Eloquent\Model` class.
+To get started, let's create an Eloquent model. Models typically live in the `app\Models` directory, but you are free to place them anywhere that can be auto-loaded according to your `composer.json` file. All Eloquent models extend `Illuminate\Database\Eloquent\Model` class.
 
 The easiest way to create a model instance is using the `make:model` [Artisan command](/docs/{{version}}/artisan):
 
@@ -1001,6 +1001,14 @@ Instead of using custom event classes, you may register Closures that execute wh
         }
     }
 
+If needed, you may utilize [queueable anonymous event listeners](/docs/{{version}}/events#queuable-anonymous-event-listeners) when registering model events. This will instruct Laravel to execute the model event listener using the [queue](/docs/{{version}}/queues):
+
+    use function Illuminate\Events\queueable;
+
+    static::created(queueable(function ($user) {
+        //
+    }));
+
 <a name="observers"></a>
 ### Observers
 
@@ -1110,3 +1118,13 @@ You may occasionally wish to temporarily "mute" all events fired by a model. You
 
         return User::find(2);
     });
+
+#### Saving A Single Model Without Events
+
+Sometimes you may wish to "save" a given model without raising any events. You may accomplish this using the `saveQuietly` method:
+
+    $user = User::findOrFail(1);
+
+    $user->name = 'Victoria Faith';
+
+    $user->saveQuietly();

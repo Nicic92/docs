@@ -13,6 +13,7 @@
     - [The Loop Variable](#the-loop-variable)
     - [Comments](#comments)
     - [PHP](#php)
+    - [The `@once` Directive](#the-once-directive)
 - [Forms](#forms)
     - [CSRF Field](#csrf-field)
     - [Method Field](#method-field)
@@ -24,6 +25,7 @@
     - [Slots](#slots)
     - [Inline Component Views](#inline-component-views)
     - [Anonymous Components](#anonymous-components)
+    - [Dynamic Components](#dynamic-components)
 - [Including Subviews](#including-subviews)
     - [Rendering Views For Collections](#rendering-views-for-collections)
 - [Stacks](#stacks)
@@ -415,6 +417,19 @@ In some situations, it's useful to embed PHP code into your views. You can use t
 
 > {tip} While Blade provides this feature, using it frequently may be a signal that you have too much logic embedded within your template.
 
+<a name="the-once-directive"></a>
+### The `@once` Directive
+
+The `@once` directive allows you to define a portion of the template that will only be evaluate once per rendering cycle. This may be useful for pushing a given piece of JavaScript into the page's header using [stacks](#stacks). For example, if you are rendering a given [component](#components) within a loop, you may wish to only push the JavaScript to the header the the first time the component is rendered:
+
+    @once
+        @push('scripts')
+            <script>
+                // Your custom JavaScript...
+            </script>
+        @endpush
+    @endonce
+
 <a name="forms"></a>
 ## Forms
 
@@ -628,7 +643,7 @@ Blade components also allow you to access the component name, attributes, and sl
             // $data['attributes'];
             // $data['slot'];
 
-            return view('components.alert');
+            return '<div>Component content</div>';
         };
     }
 
@@ -800,6 +815,13 @@ You may specify which attributes should be considered data variables using the `
     <div {{ $attributes->merge(['class' => 'alert alert-'.$type]) }}>
         {{ $message }}
     </div>
+
+<a name="dynamic-components"></a>
+### Dynamic Components
+
+Sometimes you may need to render a component but not know which component should be rendered until runtime. In this situation, you may use Laravel's built-in `dynamic-component` component to render the component based on a runtime value or variable:
+
+    <x-dynamic-component :component="$componentName" class="mt-4" />
 
 <a name="including-subviews"></a>
 ## Including Subviews

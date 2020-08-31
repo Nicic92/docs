@@ -62,7 +62,7 @@ Laravel Cashier provides an expressive, fluent interface to [Stripe's](https://s
 
 When upgrading to a new version of Cashier, it's important that you carefully review [the upgrade guide](https://github.com/laravel/cashier-stripe/blob/master/UPGRADE.md).
 
-> {note} To prevent breaking changes, Cashier uses a fixed Stripe API version. Cashier 11 utilizes Stripe API version `2020-03-02`. The Stripe API version will be updated on minor releases in order to make use of new Stripe features and improvements.
+> {note} To prevent breaking changes, Cashier uses a fixed Stripe API version. Cashier 12 utilizes Stripe API version `2020-03-02`. The Stripe API version will be updated on minor releases in order to make use of new Stripe features and improvements.
 
 <a name="installation"></a>
 ## Installation
@@ -711,7 +711,7 @@ By default, Stripe will prorate charges when adding or removing plans from a sub
 
 #### Quantities
 
-If you would like to update quantities on individual subscription plans, you may do so using the [existing quantity methods](subscription-quantity) and passing the name of the plan as an additional argument to the method:
+If you would like to update quantities on individual subscription plans, you may do so using the [existing quantity methods](#subscription-quantity) and passing the name of the plan as an additional argument to the method:
 
     $user = User::find(1);
 
@@ -969,9 +969,11 @@ Cashier automatically handles subscription cancellation on failed charges, but i
 
 Next, define a route to your Cashier controller within your `routes/web.php` file. This will overwrite the default shipped route:
 
+    use App\Http\Controllers\WebhookController;
+
     Route::post(
         'stripe/webhook',
-        '\App\Http\Controllers\WebhookController@handleWebhook'
+        [WebhookController::class, 'handleWebhook']
     );
 
 Cashier emits a `Laravel\Cashier\Events\WebhookReceived` event when a webhook is received, and a `Laravel\Cashier\Events\WebhookHandled` event when a webhook was handled by Cashier. Both events contain the full payload of the Stripe webhook.

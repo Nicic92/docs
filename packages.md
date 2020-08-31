@@ -7,7 +7,6 @@
 - [Resources](#resources)
     - [Configuration](#configuration)
     - [Migrations](#migrations)
-    - [Factories](#factories)
     - [Routes](#routes)
     - [Translations](#translations)
     - [Views](#views)
@@ -153,25 +152,6 @@ If your package contains [database migrations](/docs/{{version}}/migrations), yo
 
 Once your package's migrations have been registered, they will automatically be run when the `php artisan migrate` command is executed. You do not need to export them to the application's main `database/migrations` directory.
 
-<a name="factories"></a>
-### Factories
-
-If your package contains [database factories](/docs/{{version}}/database-testing#writing-factories), you may use the `loadFactoriesFrom` method to inform Laravel how to load them. The `loadFactoriesFrom` method accepts the path to your package's factories as its only argument:
-
-    /**
-     * Bootstrap any application services.
-     *
-     * @return void
-     */
-    public function boot()
-    {
-        $this->loadFactoriesFrom(__DIR__.'/path/to/factories');
-    }
-
-Once your package's factories have been registered, you can use them in your application:
-
-    factory(Package\Namespace\Model::class)->create();
-
 <a name="translations"></a>
 ### Translations
 
@@ -279,6 +259,12 @@ Once your view components are registered in a service provider, you may referenc
     <x-courier-alert />
 
     <x-courier-button />
+
+#### Anonymous Components
+
+If your package contains anonymous components, they must be placed within a `components` directory of your package's "views" directory (as specified by `loadViewsFrom`). Then, you may render them by prefixing the component name with the package's view namespace:
+
+    <x-courier::alert />
 
 <a name="commands"></a>
 ## Commands

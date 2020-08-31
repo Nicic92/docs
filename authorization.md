@@ -57,7 +57,9 @@ Gates are Closures that determine if a user is authorized to perform a given act
         });
     }
 
-Gates may also be defined using a `Class@method` style callback string, like controllers:
+Gates may also be defined using a class callback array, like controllers:
+
+    use App\Policies\PostPolicy;
 
     /**
      * Register any authentication / authorization services.
@@ -68,7 +70,7 @@ Gates may also be defined using a `Class@method` style callback string, like con
     {
         $this->registerPolicies();
 
-        Gate::define('update-post', 'App\Policies\PostPolicy@update');
+        Gate::define('update-post', [PostPolicy::class, 'update']);
     }
 
 <a name="authorizing-actions-via-gates"></a>
@@ -239,7 +241,7 @@ Once the policy exists, it needs to be registered. The `AuthServiceProvider` inc
 
 #### Policy Auto-Discovery
 
-Instead of manually registering model policies, Laravel can auto-discover policies as long as the model and policy follow standard Laravel naming conventions. Specifically, the policies must be in a `Policies` directory below the directory that contains the models. So, for example, the models may be placed in the `app` directory while the policies may be placed in the `app/Policies` directory. In addition, the policy name must match the model name and have a `Policy` suffix. So, a `User` model would correspond to a `UserPolicy` class.
+Instead of manually registering model policies, Laravel can auto-discover policies as long as the model and policy follow standard Laravel naming conventions. Specifically, the policies must be in a `Policies` directory at or above the directory that contains your models. So, for example, the models may be placed in the `app/Models` directory while the policies may be placed in the `app/Policies` directory. In this situation, Laravel will check for policies in `app/Models/Policies` then `app/Policies`. In addition, the policy name must match the model name and have a `Policy` suffix. So, a `User` model would correspond to a `UserPolicy` class.
 
 If you would like to provide your own policy discovery logic, you may register a custom callback using the `Gate::guessPolicyNamesUsing` method. Typically, this method should be called from the `boot` method of your application's `AuthServiceProvider`:
 

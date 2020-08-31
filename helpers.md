@@ -2477,13 +2477,6 @@ The `event` function dispatches the given [event](/docs/{{version}}/events) to i
 
     event(new UserRegistered($user));
 
-<a name="method-factory"></a>
-#### `factory()` {#collection-method}
-
-The `factory` function creates a model factory builder for a given class, name, and amount. It can be used while [testing](/docs/{{version}}/database-testing#writing-factories) or [seeding](/docs/{{version}}/seeding#using-model-factories):
-
-    $user = factory(App\Models\User::class)->make();
-
 <a name="method-filled"></a>
 #### `filled()` {#collection-method}
 
@@ -2591,7 +2584,7 @@ The `redirect` function returns a [redirect HTTP response](/docs/{{version}}/res
 <a name="method-report"></a>
 #### `report()` {#collection-method}
 
-The `report` function will report an exception using your [exception handler](/docs/{{version}}/errors#the-exception-handler)'s `report` method:
+The `report` function will report an exception using your [exception handler](/docs/{{version}}/errors#the-exception-handler):
 
     report($e);
 
@@ -2607,7 +2600,7 @@ The `request` function returns the current [request](/docs/{{version}}/requests)
 <a name="method-rescue"></a>
 #### `rescue()` {#collection-method}
 
-The `rescue` function executes the given Closure and catches any exceptions that occur during its execution. All exceptions that are caught will be sent to your [exception handler](/docs/{{version}}/errors#the-exception-handler)'s `report` method; however, the request will continue processing:
+The `rescue` function executes the given Closure and catches any exceptions that occur during its execution. All exceptions that are caught will be sent to your [exception handler](/docs/{{version}}/errors#the-exception-handler); however, the request will continue processing:
 
     return rescue(function () {
         return $this->method();
