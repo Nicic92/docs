@@ -36,9 +36,7 @@
 
 Laravel Telescope is an elegant debug assistant for the Laravel framework. Telescope provides insight into the requests coming into your application, exceptions, log entries, database queries, queued jobs, mail, notifications, cache operations, scheduled tasks, variable dumps and more. Telescope makes a wonderful companion to your local Laravel development environment.
 
-<p align="center">
-<img src="https://laravel.com/assets/img/examples/Screen_Shot_2018-10-09_at_1.47.23_PM.png" width="600">
-</p>
+<img src="https://laravel.com/img/docs/telescope-example.png">
 
 <a name="installation"></a>
 ## Installation
@@ -69,7 +67,7 @@ After running `telescope:install`, you should remove the `TelescopeServiceProvid
      */
     public function register()
     {
-        if ($this->app->isLocal()) {
+        if ($this->app->environment('local')) {
             $this->app->register(\Laravel\Telescope\TelescopeServiceProvider::class);
             $this->app->register(TelescopeServiceProvider::class);
         }
@@ -170,7 +168,7 @@ You may filter the data that is recorded by Telescope via the `filter` callback 
         $this->hideSensitiveRequestDetails();
 
         Telescope::filter(function (IncomingEntry $entry) {
-            if ($this->app->isLocal()) {
+            if ($this->app->environment('local')) {
                 return true;
             }
 
@@ -198,7 +196,7 @@ While the `filter` callback filters data for individual entries, you may use the
         $this->hideSensitiveRequestDetails();
 
         Telescope::filterBatch(function (Collection $entries) {
-            if ($this->app->isLocal()) {
+            if ($this->app->environment('local')) {
                 return true;
             }
 

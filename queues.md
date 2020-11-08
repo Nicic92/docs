@@ -9,7 +9,6 @@
 - [Job Middleware](#job-middleware)
     - [Rate Limiting](#rate-limiting)
     - [Preventing Job Overlaps](#preventing-job-overlaps)
-    - [Limiting Concurrent Jobs](#limiting-concurrent-jobs)
 - [Dispatching Jobs](#dispatching-jobs)
     - [Delayed Dispatching](#delayed-dispatching)
     - [Synchronous Dispatching](#synchronous-dispatching)
@@ -358,6 +357,8 @@ If you wish to immediately delete any overlapping jobs, you may use the `dontRel
     {
         return [(new WithoutOverlapping($this->order->id))->dontRelease()];
     }
+
+> {note} The `WithoutOverlapping` middleware requires a cache driver that supports [locks](/docs/{{version}}/cache#atomic-locks).
 
 <a name="dispatching-jobs"></a>
 ## Dispatching Jobs
@@ -814,12 +815,12 @@ You may add a set of [chained jobs](#job-chaining) within a batch by placing the
 
     Bus::batch([
         [
-            new ReleasePodcast(1);
-            new SendPodcastReleaseNotification(1);
+            new ReleasePodcast(1),
+            new SendPodcastReleaseNotification(1),
         ],
         [
-            new ReleasePodcast(2);
-            new SendPodcastReleaseNotification(2);
+            new ReleasePodcast(2),
+            new SendPodcastReleaseNotification(2),
         ],
     ])->dispatch();
 

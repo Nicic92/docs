@@ -93,6 +93,8 @@ You may use the `Route::permanentRedirect` method to return a `301` status code:
 
     Route::permanentRedirect('/here', '/there');
 
+> {note} When using route parameters in redirect routes, the following parameters are reserved by Laravel and cannot be used: `destination` and `status`.
+
 <a name="view-routes"></a>
 ### View Routes
 
@@ -101,6 +103,8 @@ If your route only needs to return a view, you may use the `Route::view` method.
     Route::view('/welcome', 'welcome');
 
     Route::view('/welcome', 'welcome', ['name' => 'Taylor']);
+
+> {note} When using route parameters in view routes, the following parameters are reserved by Laravel and cannot be used: `view`, `data`, `status`, and `headers`.
 
 <a name="route-parameters"></a>
 ## Route Parameters
@@ -151,6 +155,16 @@ You may constrain the format of your route parameters using the `where` method o
     Route::get('user/{id}/{name}', function ($id, $name) {
         //
     })->where(['id' => '[0-9]+', 'name' => '[a-z]+']);
+
+For convenience, some commonly used regular expression patterns have helper methods that allow you to quickly add pattern constraints to your routes:
+
+    Route::get('user/{id}/{name}', function ($id, $name) {
+        //
+    })->whereNumeric('id')->whereAlpha('name');
+
+    Route::get('user/{id}', function ($id) {
+        //
+    })->whereUuid('id');
 
 <a name="parameters-global-constraints"></a>
 #### Global Constraints
@@ -254,7 +268,7 @@ If you would like to determine if the current request was routed to a given name
 <a name="route-groups"></a>
 ## Route Groups
 
-Route groups allow you to share route attributes, such as middleware, across a large number of routes without needing to define those attributes on each individual route. Shared attributes are specified in an array format as the first parameter to the `Route::group` method.
+Route groups allow you to share route attributes, such as middleware, across a large number of routes without needing to define those attributes on each individual route.
 
 Nested groups attempt to intelligently "merge" attributes with their parent group. Middleware and `where` conditions are merged while names and prefixes are appended. Namespace delimiters and slashes in URI prefixes are automatically added where appropriate.
 
@@ -324,6 +338,18 @@ Laravel automatically resolves Eloquent models defined in routes or controller a
 
 Since the `$user` variable is type-hinted as the `App\Models\User` Eloquent model and the variable name matches the `{user}` URI segment, Laravel will automatically inject the model instance that has an ID matching the corresponding value from the request URI. If a matching model instance is not found in the database, a 404 HTTP response will automatically be generated.
 
+Of course, implicit binding is also possible when using controller methods. Again, note the `{user}` URI segment matches the `$user` variable in the controller which contains an `App\Models\User` type-hint:
+
+    use App\Http\Controllers\UserController;
+    use App\Models\User;
+
+    Route::get('users/{user}', [UserController::class, 'show']);
+
+    public function show(User $user)
+    {
+        return view('user.profile', ['user' => $user]);
+    }
+
 <a name="customizing-the-key"></a>
 #### Customizing The Key
 
@@ -374,7 +400,7 @@ To register an explicit binding, use the router's `model` method to specify the 
      */
     public function boot()
     {
-        Route::model('user', App\Models\User::class);
+        Route::model('user', \App\Models\User::class);
 
         // ...
     }
@@ -420,6 +446,21 @@ Alternatively, you may override the `resolveRouteBinding` method on your Eloquen
     public function resolveRouteBinding($value, $field = null)
     {
         return $this->where('name', $value)->firstOrFail();
+    }
+
+If a route is utilizing [implicit binding scoping](#implicit-model-binding-scoping), the `resolveChildRouteBinding` method will be used to resolve the child binding of the parent model:
+
+    /**
+     * Retrieve the child model for a bound value.
+     *
+     * @param  string  $childType
+     * @param  mixed  $value
+     * @param  string|null  $field
+     * @return \Illuminate\Database\Eloquent\Model|null
+     */
+    public function resolveChildRouteBinding($childType, $value, $field)
+    {
+        return parent::resolveChildRouteBinding($childType, $value, $field);
     }
 
 <a name="fallback-routes"></a>

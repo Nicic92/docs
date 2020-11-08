@@ -20,6 +20,8 @@ Horizon provides a beautiful dashboard and code-driven configuration for your La
 
 All of your worker configuration is stored in a single, simple configuration file, allowing your configuration to stay in source control where your entire team can collaborate.
 
+<img src="https://laravel.com/img/docs/horizon-example.png">
+
 <a name="installation"></a>
 ## Installation
 
@@ -132,6 +134,12 @@ You may pause the Horizon process and instruct it to continue processing jobs us
     php artisan horizon:pause
 
     php artisan horizon:continue
+
+You may also pause and continue specific Horizon supervisors (worker groups) using the `horizon:pause-supervisor` and `horizon:continue-supervisor` Artisan commands:
+
+    php artisan horizon:pause-supervisor supervisor-1
+
+    php artisan horizon:continue-supervisor supervisor-1
 
 You may check the current status of the Horizon process using the `horizon:status` Artisan command:
 
