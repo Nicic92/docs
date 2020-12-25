@@ -2,6 +2,7 @@
 
 - [Introduction](#introduction)
 - [Installation & Setup](#installation)
+    - [Installing Sail Into Existing Applications](#installing-sail-into-existing-applications)
     - [Configuring A Bash Alias](#configuring-a-bash-alias)
 - [Starting & Stopping Sail](#starting-and-stopping-sail)
 - [Executing Commands](#executing-sail-commands)
@@ -33,6 +34,21 @@ Laravel Sail is supported on macOS, Linux, and Windows (via WSL2).
 ## Installation & Setup
 
 Laravel Sail is automatically installed with all new Laravel applications so you may start using it immediately. To learn how to create a new Laravel application, please consult Laravel's [installation documentation](/docs/{{version}}/installation) for your operating system.
+
+<a name="installing-sail-into-existing-applications"></a>
+### Installing Sail Into Existing Applications
+
+If you are interested in using Sail with an existing Laravel application, you may simply install Sail using the Composer package manager. Of course, these steps assume that your existing local development environment allows you to install Composer dependencies:
+
+    composer require laravel/sail --dev
+
+After Sail has been installed, you may run the `sail:install` Artisan command. This command will publish Sail's `docker-compose.yml` file to the root of your application:
+
+    php artisan sail:install
+
+Finally, you may start Sail. To continue learning how to use Sail, please continue reading the remainder of this documentation:
+
+    ./vendor/bin/sail up
 
 <a name="configuring-a-bash-alias"></a>
 ### Configuring A Bash Alias
@@ -115,6 +131,21 @@ Composer commands may be executed using the `composer` command. Laravel Sail's a
 sail composer require laravel/sanctum
 ```
 
+<a name="installing-composer-dependencies-for-existing-projects"></a>
+#### Installing Composer Dependencies For Existing Applications
+
+If you are developing an application with a team, you may not be the one that initially creates the Laravel application. Therefore, none of the application's Composer dependencies, including Sail, will be installed after you clone the application's repository to your local computer.
+
+You may install the application's dependencies by navigating to the application's directory and executing the following command. This command uses a small Docker container containing PHP and Composer to install the application's dependencies:
+
+```nothing
+docker run --rm \
+    -v $(pwd):/opt \
+    -w /opt \
+    laravelsail/php80-composer:latest \
+    composer install
+```
+
 <a name="executing-artisan-commands"></a>
 ### Executing Artisan Commands
 
@@ -172,19 +203,23 @@ The Sail `test` command is equivalent to running the `test` Artisan command:
 
 [Laravel Dusk](/docs/{{version}}/dusk) provides an expressive, easy-to-use browser automation and testing API. Thanks to Sail, you may run these tests without ever installing Selenium or other tools on your local computer. To get started, uncomment the Selenium service in your application's `docker-compose.yml` file:
 
-    selenium:
-        image: 'selenium/standalone-chrome'
-        volumes:
-            - '/dev/shm:/dev/shm'
-        networks:
-            - sail
+```yaml
+selenium:
+    image: 'selenium/standalone-chrome'
+    volumes:
+        - '/dev/shm:/dev/shm'
+    networks:
+        - sail
+```
 
 Next, ensure that the `laravel.test` service in your application's `docker-compose.yml` file has a `depends_on` entry for `selenium`:
 
-        depends_on:
-            - mysql
-            - redis
-            - selenium
+```yaml
+depends_on:
+    - mysql
+    - redis
+    - selenium
+```
 
 Finally, you may run your Dusk test suite by starting Sail and running the `dusk` command:
 
@@ -193,9 +228,10 @@ Finally, you may run your Dusk test suite by starting Sail and running the `dusk
 <a name="previewing-emails"></a>
 ## Previewing Emails
 
-Laravel Sail's default `docker-compose.yml` file contains a service entry for [MailHog](https://github.com/mailhog/MailHog). MailHog intercepts emails sent by your application during local development and provides a convenient web interface so that you can preview your email messages in your browser. MailHog's default SMTP port is `1025`:
+Laravel Sail's default `docker-compose.yml` file contains a service entry for [MailHog](https://github.com/mailhog/MailHog). MailHog intercepts emails sent by your application during local development and provides a convenient web interface so that you can preview your email messages in your browser. When using Sail, MailHog's default host is `mailhog` and is available via port 1025:
 
 ```bash
+MAIL_HOST=mailhog
 MAIL_PORT=1025
 ```
 
@@ -260,7 +296,7 @@ If you would like to choose the subdomain for your shared site, you may provide 
 Since Sail is just Docker, you are free to customize nearly everything about it. To publish Sail's own Dockerfiles, you may execute the `sail:publish` command:
 
 ```bash
-sail artisan sail:publish
+php artisan sail:publish
 ```
 
 After running this command, the Dockerfiles and other configuration files used by Laravel Sail will be placed within a `docker` directory in your application's root directory. After customizing your Sail installation, you may rebuild your application's containers using the `build` command:

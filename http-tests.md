@@ -444,6 +444,7 @@ Laravel's `Illuminate\Testing\TestResponse` class provides a variety of custom a
 [assertHeaderMissing](#assert-header-missing)
 [assertJson](#assert-json)
 [assertJsonCount](#assert-json-count)
+[assertJsonFragment](#assert-json-fragment)
 [assertJsonMissing](#assert-json-missing)
 [assertJsonMissingExact](#assert-json-missing-exact)
 [assertJsonMissingValidationErrors](#assert-json-missing-validation-errors)
@@ -571,6 +572,23 @@ Assert that the response JSON has an array with the expected number of items at 
 
     $response->assertJsonCount($count, $key = null);
 
+<a name="assert-json-fragment"></a>
+#### assertJsonFragment
+
+Assert that the response contains the given JSON data anywhere in the response:
+
+    Route::get('/users', function () {
+        return [
+            'users' => [
+                [
+                    'name' => 'Taylor Otwell',
+                ],
+            ],
+        ];
+    });
+
+    $response->assertJsonFragment(['name' => 'Taylor Otwell']);
+
 <a name="assert-json-missing"></a>
 #### assertJsonMissing
 
@@ -632,7 +650,7 @@ For example, if the JSON response returned by your application contains the foll
 
 You may assert that the JSON structure matches your expectations like so:
 
-    $response->assertJsonStruture([
+    $response->assertJsonStructure([
         'user' => [
             'name',
         ]
